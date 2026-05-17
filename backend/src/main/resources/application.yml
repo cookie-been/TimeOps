@@ -1,5 +1,22 @@
 spring:
   application:
     name: timeops-backend
+  datasource:
+    url: jdbc:postgresql://${TIMEOPS_DB_HOST:localhost}:${TIMEOPS_DB_PORT:5432}/${TIMEOPS_DB_NAME:timeops}
+    username: ${TIMEOPS_DB_USERNAME:timeops}
+    password: ${TIMEOPS_DB_PASSWORD:timeops}
+  flyway:
+    enabled: true
+    placeholders:
+      initial-admin-password-hash: ${TIMEOPS_INITIAL_ADMIN_PASSWORD_HASH}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
 server:
   port: 8080
+timeops:
+  security:
+    jwt:
+      secret: ${TIMEOPS_JWT_SECRET}
+      expiration-seconds: ${TIMEOPS_JWT_EXPIRATION_SECONDS:86400}
