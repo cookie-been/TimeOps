@@ -1,554 +1,561 @@
-# TimeOps MVP Design
+# TimeOps MVP 设计文档
 
-- Date: 2026-05-17
-- Status: Approved in conversation, written for review
-- Scope: MVP design only, no implementation in this document
+- 日期：2026-05-17
+- 状态：已在对话中确认，现整理为书面设计供审阅
+- 范围：本文档仅描述 MVP 设计，不包含实现代码
 
-## 1. Product Positioning
+## 1. 产品定位
 
-TimeOps is an internal operations platform for standardized customer delivery and lifecycle maintenance after product purchase.
+TimeOps 是一个内部运维平台，用于在客户购买产品后，统一管理标准化部署、后续更新以及日常维护操作。
 
-The MVP serves a narrow and deliberate use case:
+本期 MVP 明确服务于以下场景：
 
-- Internal users only
-- Target servers are Linux hosts
-- Connection method is SSH with username/password
-- Primary deployment target is Docker Compose based applications
-- Product delivery supports both Git-based releases and uploaded release packages
-- Primary post-deployment operation is application update
-- High-risk ad-hoc command execution is allowed with full audit
-- Multiple internal users with role-based access control are required
+- 仅供内部人员使用
+- 目标服务器为 Linux 主机
+- 连接方式为 SSH 用户名密码
+- 主要部署形态为 Docker Compose 应用
+- 交付来源同时支持 Git 和上传发布包
+- 部署后的核心运维能力优先支持应用更新
+- 允许执行高风险临时命令，但必须全量审计
+- 需要多内部账号与基于角色的权限控制
 
-The product is not positioned as a generic SSH panel or a full DevOps platform. It is a standardized delivery control plane centered on reusable product templates, customer-specific deployment instances, controlled execution, and auditability.
+这个产品不是通用 SSH 面板，也不是完整 DevOps 平台。它的核心定位是一个围绕“产品模板、客户实例、远程执行、审计追踪”建立起来的标准化交付控制台。
 
-## 2. MVP Goals
+## 2. MVP 目标
 
-The MVP must make these workflows reliable and repeatable:
+MVP 需要把以下流程做成可靠、可重复、可追踪的标准操作：
 
-1. Register a customer and its target server
-2. Define a reusable product deployment template
-3. Create a customer deployment instance from that template
-4. Deliver an initial deployment to the customer server
-5. Push application updates later from Git or a release package
-6. Execute approved operational actions remotely
-7. Record every sensitive action in an auditable trail
+1. 录入客户及其服务器
+2. 定义可复用的产品部署模板
+3. 基于模板创建客户部署实例
+4. 向客户服务器执行首次部署
+5. 后续通过 Git 或发布包执行应用更新
+6. 对目标实例执行授权内的运维动作
+7. 对所有敏感操作建立完整审计链路
 
-## 3. Explicit Non-Goals
+## 3. 明确不做的范围
 
-The MVP does not include:
+本期 MVP 不包含以下内容：
 
-- Customer-facing portal
-- Formal multi-server environment orchestration
-- Automated monitoring and alerting
-- Full rollback framework
-- Interactive browser shell
-- CI/CD pipeline orchestration
-- Gray release, canary release, or staged rollout
+- 客户侧门户
+- 正式的多服务器环境编排
+- 自动监控与告警
+- 完整回滚体系
+- 浏览器交互式终端
+- CI/CD 流水线编排
+- 灰度发布、金丝雀发布或分批发布
 
-These can be added later without invalidating the core model defined here.
+这些能力后续都可以扩展，但不应进入当前 MVP 范围。
 
-## 4. Recommended Product Direction
+## 4. 推荐的产品方向
 
-Three directions were considered:
+在设计时评估了三条路线：
 
-1. Lightweight SSH operations console
-2. Standardized delivery platform
-3. Full DevOps or PaaS platform
+1. 轻量远程运维台
+2. 标准化交付平台
+3. 完整 DevOps / PaaS 平台
 
-The recommended direction is option 2: a standardized delivery platform.
+推荐采用第 2 条路线：标准化交付平台。
 
-Reasoning:
+原因如下：
 
-- The business problem is not just remote command execution
-- The same product is sold repeatedly with customer-specific overrides
-- Delivery, update, and audit are the real value chain
-- A template-and-instance model matches the operating model better than a raw machine-centric design
+- 你的业务问题不只是远程执行命令
+- 同一类产品会重复卖给不同客户，但每个客户会带有差异配置
+- 真正有价值的是“交付、更新、审计”这一整条链路
+- 用“模板 + 实例”的产品模型，比单纯按机器管理更贴合实际业务
 
-## 5. High-Level Architecture
+## 5. 总体架构
 
-The MVP should use a modular monolith with asynchronous task execution, not microservices.
+MVP 建议采用“模块化单体 + 异步任务执行”的架构，而不是一开始拆微服务。
 
-### 5.1 Main parts
+### 5.1 主要组成
 
-- Admin web application
-- Backend control plane API
-- Asynchronous task executor
-- Relational database
-- Local release file storage
+- 管理后台 Web 应用
+- 后端控制面 API
+- 异步任务执行器
+- 关系型数据库
+- 本地发布包存储
 
-### 5.2 Why this shape
+### 5.2 为什么采用这种形态
 
-The early complexity lives in task execution, credential handling, authorization, and audit. It does not justify service fragmentation yet. A modular monolith keeps the system easier to build, reason about, and maintain while preserving clear internal module boundaries.
+这个平台前期的复杂度主要集中在：
 
-### 5.3 Architecture summary
+- 远程任务执行
+- 凭据安全
+- 权限校验
+- 审计记录
 
-- The web application is the internal operations console
-- The backend API owns business rules, RBAC, credential handling, and audit persistence
-- The task executor performs SSH-based remote actions and streams structured output back to the backend
-- The database stores metadata, configuration, tasks, users, roles, and audit records
-- Release packages are stored as managed files and referenced by release records
+这些问题并不要求一开始拆成多个服务。模块化单体更容易实现、更容易维护，也更适合第一期快速打稳业务边界。
 
-## 6. Core Domain Model
+### 5.3 架构职责概述
 
-The MVP should define the following primary entities.
+- Web 后台：内部运维操作界面
+- 后端 API：承载业务规则、RBAC、凭据处理、审计落库
+- 任务执行器：通过 SSH 执行远程动作，并将结构化结果回传后端
+- 数据库：保存元数据、配置、任务、用户、角色、审计记录
+- 发布包存储：保存上传的制品文件，并与发布记录关联
 
-### 6.1 Customer
+## 6. 核心领域模型
 
-Represents a purchasing organization.
+MVP 建议建立以下核心对象。
 
-Fields:
+### 6.1 客户 Customer
 
-- name
-- contact person
-- contact phone or email
-- contract start date
-- contract expiry date
-- notes
+表示一个购买你产品的客户组织。
 
-### 6.2 Server
+主要字段：
 
-Represents a customer-provided Linux server.
+- 名称
+- 联系人
+- 联系电话或邮箱
+- 合同开始时间
+- 合同到期时间
+- 备注
 
-Fields:
+### 6.2 服务器 Server
 
-- customer id
-- host or IP
-- SSH port
-- SSH username
-- encrypted SSH password
-- operating system label
-- machine tags
-- last connectivity status
-- notes
+表示客户提供的一台 Linux 服务器。
 
-Rules:
+主要字段：
 
-- One customer can have multiple servers
-- Passwords are stored encrypted and never rendered back in plaintext
+- 客户 ID
+- 主机地址或 IP
+- SSH 端口
+- SSH 用户名
+- 加密后的 SSH 密码
+- 操作系统标签
+- 机器标签
+- 最近一次连通状态
+- 备注
 
-### 6.3 ProductTemplate
+规则：
 
-Defines the standard delivery model for a product line.
+- 一个客户可以有多台服务器
+- 密码必须加密存储，页面中不回显明文
 
-Fields:
+### 6.3 产品模板 ProductTemplate
 
-- template name
-- product code
-- supported release source types
-- default working directory
-- default environment variables
-- default configuration schema
-- description
+表示一类标准产品的交付定义。
 
-Purpose:
+主要字段：
 
-- Encapsulates how this product is usually deployed and updated
-- Separates product defaults from customer-specific overrides
+- 模板名称
+- 产品编码
+- 支持的发布来源类型
+- 默认工作目录
+- 默认环境变量
+- 默认配置结构
+- 描述
 
-### 6.4 TemplateAction
+作用：
 
-Defines executable operations under a product template.
+- 描述这类产品通常如何部署和更新
+- 将产品默认规则与客户差异配置分离
 
-Initial action types:
+### 6.4 模板动作 TemplateAction
 
-- initial deployment
-- application update
-- restart service
-- health or status check
+表示某个产品模板下可执行的标准动作。
 
-Execution modes:
+首期动作类型建议包括：
 
-- script mode
-- step mode
+- 首次部署
+- 应用更新
+- 服务重启
+- 状态检查
 
-MVP rule:
+执行模式分为：
 
-- The implementation can start with script mode
-- The data model must already support step mode for future structured orchestration
+- 脚本模式
+- 步骤模式
 
-### 6.5 DeploymentInstance
+MVP 规则：
 
-Represents a real customer deployment of a product on a server.
+- 实现可以先以脚本模式为主
+- 但数据模型必须预留步骤模式，以便后续升级为结构化编排
 
-Fields:
+### 6.5 部署实例 DeploymentInstance
 
-- customer id
-- template id
-- primary server id
-- instance name
-- environment label
-- current release id
-- status
-- notes
+表示某个客户在某台服务器上的一个实际部署对象。
 
-Examples:
+主要字段：
 
-- Customer A / Official Site / Production
-- Customer B / Admin System / Production
+- 客户 ID
+- 模板 ID
+- 主服务器 ID
+- 实例名称
+- 环境标签
+- 当前运行版本 ID
+- 状态
+- 备注
 
-This is the operational center of the platform.
+示例：
 
-### 6.6 InstanceConfig
+- A 客户 / 官网系统 / 生产环境
+- B 客户 / 管理后台 / 生产环境
 
-Stores customer-specific overrides for a deployment instance.
+这是整个平台最核心的运维对象。
 
-Examples:
+### 6.6 实例配置 InstanceConfig
 
-- domain
-- install path
-- ports
-- license key
-- theme
-- feature toggles
-- third-party integration values
+用于保存客户级覆盖配置。
 
-Rule:
+典型内容：
 
-- Final runtime config is produced by merging template defaults with instance overrides
+- 域名
+- 安装目录
+- 端口
+- 授权码
+- 主题
+- 功能开关
+- 第三方集成参数
 
-### 6.7 Release
+规则：
 
-Represents a deployable version.
+- 实际运行配置由“模板默认值 + 实例覆盖值”合并得到
 
-Supported source types:
+### 6.7 发布版本 Release
 
-- Git source
-- uploaded release package
+表示一个可被部署的版本。
 
-Typical fields:
+支持的来源类型：
 
-- template id
-- version label
-- source type
-- repository URL or package file reference
-- branch, tag, or commit when source type is Git
-- changelog
-- created by
-- created at
+- Git 来源
+- 上传发布包
 
-### 6.8 OperationTask
+典型字段：
 
-Represents one executed operation.
+- 模板 ID
+- 版本号或版本标签
+- 来源类型
+- 仓库地址或发布包文件引用
+- Git 分支、标签或 commit
+- 版本说明
+- 创建人
+- 创建时间
 
-Task categories:
+### 6.8 运维任务 OperationTask
 
-- deployment
-- update
-- restart
-- health check
-- ad-hoc command
+表示一次实际执行的操作。
 
-Fields:
+任务类型建议包括：
 
-- task number
-- initiator user id
-- target deployment instance id or server id
-- action reference
-- release reference when applicable
-- command input when applicable
-- status
-- started at
-- ended at
-- exit code
-- output log
-- error log
+- 部署
+- 更新
+- 重启
+- 状态检查
+- 临时命令执行
 
-This entity anchors both task tracking and auditability.
+主要字段：
 
-## 7. Functional Modules
+- 任务编号
+- 发起人用户 ID
+- 目标部署实例 ID 或服务器 ID
+- 动作引用
+- 版本引用（如适用）
+- 命令输入（如适用）
+- 状态
+- 开始时间
+- 结束时间
+- 退出码
+- 标准输出日志
+- 标准错误日志
 
-The MVP admin console should include these modules.
+这个对象同时是任务中心和审计体系的锚点。
 
-### 7.1 Dashboard
+## 7. 功能模块划分
 
-Purpose:
+MVP 后台建议包含以下模块。
 
-- Show recent task totals, success rate, failed tasks, and pending issues
-- Provide fast entry points for deployment, update, and task review
+### 7.1 仪表盘
 
-### 7.2 Customer Management
+用途：
 
-Purpose:
+- 展示最近任务数、成功率、失败任务、待处理问题
+- 提供部署、更新、任务查看等快捷入口
 
-- Maintain customer records
-- View related servers, deployment instances, and recent operations
+### 7.2 客户管理
 
-### 7.3 Server Management
+用途：
 
-Purpose:
+- 维护客户资料
+- 查看该客户名下服务器、部署实例、最近操作记录
 
-- Register SSH targets
-- Test connectivity
-- Manage machine tags and metadata
-- Show latest connectivity and task status
+### 7.3 服务器管理
 
-Constraints:
+用途：
 
-- Password is masked on read
-- Password update is a separate audited operation
+- 录入 SSH 目标
+- 检测连通性
+- 管理机器标签和基础信息
+- 展示最近一次连通结果和最近任务状态
 
-### 7.4 Product Template Management
+约束：
 
-Purpose:
+- 密码展示必须脱敏
+- 修改密码应作为独立审计动作处理
 
-- Maintain deployment defaults
-- Define standard actions and scripts
-- Manage config schema and release source compatibility
+### 7.4 产品模板管理
 
-### 7.5 Deployment Instance Management
+用途：
 
-Purpose:
+- 维护部署默认规则
+- 定义标准动作与脚本
+- 管理配置结构与支持的发布来源
 
-- Bind customer, template, server, and overrides into an operational object
-- Launch deployment, update, restart, status check, and ad-hoc command actions
+### 7.5 部署实例管理
 
-### 7.6 Release Management
+用途：
 
-Purpose:
+- 将客户、模板、服务器、差异配置绑定成一个可运维对象
+- 从实例维度发起部署、更新、重启、状态检查、临时命令
 
-- Register Git-based releases
-- Upload and manage release packages
-- Attach releases to product templates
+### 7.6 发布版本管理
 
-### 7.7 Task Center
+用途：
 
-Purpose:
+- 维护 Git 型发布版本
+- 上传并管理发布包
+- 将版本与产品模板关联
 
-- Unified queue and history of all operations
-- Filter by task type, status, user, customer, server, and date
-- View execution logs and duration
+### 7.7 任务中心
 
-### 7.8 Audit Log
+用途：
 
-Purpose:
+- 统一查看所有运维任务的队列与历史
+- 按任务类型、状态、用户、客户、服务器、时间过滤
+- 查看执行日志、耗时、结果
 
-- Persist all sensitive actions
-- Provide traceability across login, credential changes, deployment, update, delete, and command execution
+### 7.8 审计日志
 
-### 7.9 Users and Roles
+用途：
 
-Purpose:
+- 记录所有敏感操作
+- 支持追踪登录、凭据修改、部署、更新、删除、命令执行等行为
 
-- Manage internal accounts
-- Assign roles
-- Enforce action-level permissions
+### 7.9 用户与角色
 
-## 8. Navigation Structure
+用途：
 
-Recommended primary navigation:
+- 管理内部账号
+- 分配角色
+- 控制操作权限
 
-- Dashboard
-- Customers
-- Servers
-- Product Templates
-- Deployment Instances
-- Releases
-- Task Center
-- Audit Log
-- Users and Roles
+## 8. 导航结构建议
 
-This matches the natural operating sequence from setup to repeated maintenance.
+后台一级导航建议如下：
 
-## 9. Key Business Flows
+- 仪表盘
+- 客户
+- 服务器
+- 产品模板
+- 部署实例
+- 发布版本
+- 任务中心
+- 审计日志
+- 用户与角色
 
-### 9.1 Initial Deployment Flow
+这个结构符合日常使用顺序：先建模板，再录客户和服务器，再创建部署实例，然后围绕版本和任务持续交付与维护。
 
-1. Create customer
-2. Register server
-3. Create deployment instance from a product template
-4. Select release source, Git or release package
-5. Merge template defaults and instance overrides
-6. Connect to the target server over SSH
-7. Transfer or fetch deployment assets
-8. Generate runtime config files as needed
-9. Execute the deployment action
-10. Persist task output and final result
+## 9. 关键业务流程
 
-### 9.2 Application Update Flow
+### 9.1 首次部署流程
 
-1. Open a deployment instance
-2. Select the target release
-3. Execute the template update action
-4. Pull code or transfer package
-5. Preserve or update config as needed
-6. Restart the Docker Compose services
-7. Mark the current running release on success
-8. Persist task logs and outcome
+1. 创建客户
+2. 录入服务器
+3. 基于产品模板创建部署实例
+4. 选择发布来源：Git 或发布包
+5. 合并模板默认配置与实例覆盖配置
+6. 通过 SSH 连接目标服务器
+7. 拉取或上传部署资产
+8. 生成运行时配置文件
+9. 执行部署动作
+10. 保存任务输出与最终结果
 
-### 9.3 Ad-Hoc Command Flow
+### 9.2 应用更新流程
 
-1. Select target server or deployment instance
-2. Enter command
-3. Validate permission
-4. Require explicit risk confirmation
-5. Execute over SSH
-6. Store the full command, output, exit code, operator, and timestamp
+1. 打开某个部署实例
+2. 选择目标发布版本
+3. 执行模板定义的更新动作
+4. 拉取新代码或上传新包
+5. 按需要保留或更新配置
+6. 重启 Docker Compose 服务
+7. 成功后更新实例当前运行版本
+8. 保存任务日志与结果
 
-### 9.4 Audit Correlation Flow
+### 9.3 临时命令执行流程
 
-Every significant operation must be traceable through:
+1. 选择目标服务器或部署实例
+2. 输入命令
+3. 校验权限
+4. 要求风险确认
+5. 通过 SSH 执行
+6. 保存命令内容、输出、退出码、发起人、时间等信息
 
-- actor
-- target
-- action type
-- template or release context
-- timestamps
-- result
-- execution logs
+### 9.4 审计关联流程
 
-The audit log must be able to link back to the originating task record.
+每一个重要操作都必须能完整追踪到：
 
-## 10. Security Requirements
+- 谁发起的
+- 影响了哪个目标
+- 执行了什么动作
+- 使用了哪个模板、版本或命令
+- 开始和结束时间
+- 执行结果
+- 输出日志
 
-Security is first-class for this product because the platform stores server credentials and can run high-risk commands.
+审计记录需要能够反查到具体任务详情。
 
-### 10.1 Credential Handling
+## 10. 安全要求
 
-- SSH passwords must be encrypted at rest
-- Plaintext passwords must never be displayed in the UI
-- Password changes must be separately audited
-- Decryption should occur only at execution time in backend memory
+由于平台会保存客户服务器凭据，并具备远程执行能力，安全设计必须是首要能力，而不是后补能力。
 
-### 10.2 Access Control
+### 10.1 凭据处理
 
-The MVP must implement RBAC with at least these roles:
+- SSH 密码必须加密存储
+- 页面中不得显示明文密码
+- 密码变更必须单独进入审计
+- 只有在执行任务时才在后端内存中短暂解密使用
 
-- Super Admin
-- Delivery or Implementation
-- Operations
-- Audit or Read Only
+### 10.2 权限控制
 
-Permission granularity for the MVP:
+MVP 至少应支持以下角色：
 
-- module-level access
-- action-level permissions
+- 超级管理员
+- 实施 / 交付
+- 运维
+- 审计 / 只读
 
-Special permission:
+权限粒度建议做到：
 
-- ad-hoc command execution must be isolated as its own permission point
+- 模块级访问
+- 动作级权限
 
-### 10.3 High-Risk Operation Controls
+特别要求：
 
-Require additional confirmation for:
+- “临时命令执行”必须是独立权限点
 
-- deleting servers
-- changing credentials
-- manually retrying failed tasks
-- executing ad-hoc commands
+### 10.3 高风险操作控制
 
-### 10.4 Output Sanitization
+以下操作应要求二次确认：
 
-Execution logs and audit logs should apply masking rules for:
+- 删除服务器
+- 修改凭据
+- 手工重试失败任务
+- 执行临时命令
 
-- passwords
-- tokens
-- API keys
-- secrets embedded in environment variables
+### 10.4 输出脱敏
 
-Without this, the audit system becomes a leak surface.
+任务日志和审计日志应对以下内容做脱敏处理：
 
-## 11. Audit Requirements
+- 密码
+- Token
+- API Key
+- 环境变量中的敏感信息
 
-The audit system is a core capability, not an accessory.
+否则日志本身会成为泄漏面。
 
-It must record at minimum:
+## 11. 审计要求
 
-- who performed the action
-- which target was affected
-- what action was performed
-- what template, release, or command was involved
-- when it started
-- when it ended
-- whether it succeeded
-- the relevant output and exit code
+审计系统是平台核心能力之一，不是附属功能。
 
-Ad-hoc commands must be easy to filter and highlight due to their elevated risk.
+至少需要记录：
 
-## 12. Technical Recommendations
+- 谁执行了操作
+- 影响了哪个目标
+- 执行了什么动作
+- 使用了哪个模板、版本或命令
+- 何时开始
+- 何时结束
+- 是否成功
+- 对应输出和退出码
 
-Because the platform is an internal enterprise operations console with long-lived value in RBAC, audit, and maintainability, the recommended stack should favor backend structure and clear domain boundaries over maximum short-term speed.
+其中“临时命令执行”必须支持单独筛选和高亮展示，因为其风险更高。
 
-### 12.1 Recommended stack
+## 12. 技术落地建议
 
-- Frontend: React + Ant Design
-- Backend: Spring Boot
-- Database: MySQL or PostgreSQL
-- Task execution: backend-managed async task queue
-- Remote execution: mature SSH library in the backend
-- Package storage: local managed storage in MVP
+考虑到该平台偏企业后台、权限体系复杂、审计要求高、需要长期维护，技术选型应优先考虑结构清晰和后续稳定演进，而不是只追求短期开发速度。
 
-### 12.2 Why Spring Boot is recommended here
+### 12.1 推荐技术栈
 
-- Strong fit for enterprise admin systems
-- Mature patterns for RBAC, audit, transactions, and modular business domains
-- Better long-term maintainability for complex permission and execution workflows
-- A good base for later separation of executor components if scale demands it
+- 前端：React + Ant Design
+- 后端：Spring Boot
+- 数据库：MySQL 或 PostgreSQL
+- 任务执行：后端统一管理的异步任务队列
+- 远程执行：后端使用成熟 SSH 库
+- 发布包存储：MVP 先采用本地受管存储
 
-### 12.3 Suggested backend module boundaries
+### 12.2 推荐 Spring Boot 的原因
 
-- auth and users
-- roles and permissions
-- customers
-- servers
-- product templates
-- deployment instances
-- releases
-- tasks
-- audit
-- credential encryption
+- 更适合企业后台系统
+- 在 RBAC、审计、事务、模块化业务边界上更成熟
+- 对复杂权限和任务执行链路的长期维护更友好
+- 后续如果任务执行器需要独立扩展，也容易演进
 
-These modules can live inside one deployable service while retaining explicit ownership boundaries.
+### 12.3 后端模块边界建议
 
-## 13. Data and Execution Design Principles
+- 认证与用户
+- 角色与权限
+- 客户
+- 服务器
+- 产品模板
+- 部署实例
+- 发布版本
+- 运维任务
+- 审计
+- 凭据加密
 
-The following design principles should remain stable through implementation:
+这些模块可以先放在一个后端服务内，但内部边界要清晰。
 
-1. Product definition must stay separate from customer-specific overrides
-2. Operational work must revolve around deployment instances, not bare machines
-3. All remote execution must flow through a task model
-4. Sensitive actions must be auditable by design
-5. The model should allow future multi-server expansion without redoing the core entities
+## 13. 数据与执行设计原则
 
-## 14. Future-Compatible Extension Points
+实现阶段应保持以下原则稳定不变：
 
-The MVP should remain compatible with later additions:
+1. 产品定义必须与客户差异配置分离
+2. 运维动作应围绕部署实例展开，而不是裸服务器
+3. 所有远程执行必须纳入任务模型
+4. 敏感操作必须天然可审计
+5. 数据模型要允许未来从单机扩展到多机，而不推翻核心实体
 
-- server groups or multi-node environments
-- step-based workflow orchestration
-- rollback snapshots
-- monitoring and alert integrations
-- customer-facing status portal
-- object storage for release artifacts
+## 14. 面向未来的扩展点
 
-## 15. Suggested Implementation Order
+当前模型应兼容后续扩展：
 
-Recommended order after planning:
+- 服务器组或多节点环境
+- 基于步骤的流程编排
+- 回滚快照
+- 监控与告警集成
+- 客户状态门户
+- 对象存储保存发布包
 
-1. Authentication, users, roles, and permission framework
-2. Customer and server management
-3. Product templates and template actions
-4. Deployment instances and instance config
-5. Releases
-6. Task engine and SSH execution
-7. Deployment and update flows
-8. Audit views and reporting
+## 15. 建议的实施顺序
 
-This order reduces rework because task execution and audit depend on the earlier domain objects being stable.
+进入实现阶段后，建议按以下顺序推进：
 
-## 16. Final MVP Summary
+1. 认证、用户、角色、权限框架
+2. 客户与服务器管理
+3. 产品模板与模板动作
+4. 部署实例与实例配置
+5. 发布版本
+6. 任务执行引擎与 SSH 执行能力
+7. 部署与更新流程
+8. 审计视图与报表
 
-The approved MVP includes:
+这个顺序可以减少返工，因为任务执行和审计依赖前面的核心对象先稳定下来。
 
-- customer management
-- server management
-- product template management
-- deployment instance management
-- release management
-- initial deployment
-- application update
-- ad-hoc command execution
-- task center
-- audit log
-- users and roles
+## 16. 最终 MVP 总结
 
-The MVP should be implemented as a Spring Boot based enterprise admin platform with React and Ant Design on the frontend, centered on reusable product templates, customer deployment instances, asynchronous SSH execution, and strict auditability.
+本次确认的 MVP 范围包括：
+
+- 客户管理
+- 服务器管理
+- 产品模板管理
+- 部署实例管理
+- 发布版本管理
+- 首次部署
+- 应用更新
+- 临时命令执行
+- 任务中心
+- 审计日志
+- 用户与角色
+
+本期 MVP 应实现为一个面向企业后台场景的运维交付平台，后端以 Spring Boot 为核心，前端采用 React + Ant Design，围绕“产品模板、客户实例、异步 SSH 执行、严格审计”建立稳定的一期能力。
