@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: timeops-backend
+server:
+  port: 8080
