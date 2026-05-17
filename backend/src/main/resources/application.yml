@@ -17,6 +17,8 @@ server:
   port: 8080
 timeops:
   security:
+    crypto:
+      secret: ${TIMEOPS_CRYPTO_SECRET}
     jwt:
       secret: ${TIMEOPS_JWT_SECRET}
       expiration-seconds: ${TIMEOPS_JWT_EXPIRATION_SECONDS:86400}

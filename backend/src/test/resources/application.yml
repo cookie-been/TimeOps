@@ -13,6 +13,8 @@ spring:
     open-in-view: false
 timeops:
   security:
+    crypto:
+      secret: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
     jwt:
       secret: pWG2A+9W/uFdijn9Li2AEFzrQIMSsd85GPQJ0tw03YA=
       expiration-seconds: 86400
