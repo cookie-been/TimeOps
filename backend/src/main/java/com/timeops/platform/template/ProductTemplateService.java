@@ -12,7 +12,10 @@ import com.timeops.platform.template.dto.ProductTemplateUpdateRequest;
 import com.timeops.platform.template.dto.TemplateActionRequest;
 import com.timeops.platform.template.dto.TemplateActionResponse;
 import com.timeops.platform.template.repository.ProductTemplateRepository;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -127,6 +130,29 @@ public class ProductTemplateService {
         if (actionRequest.mode() == TemplateActionMode.STEP && actionRequest.stepDefinition() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "stepDefinition must not be null when mode is STEP");
         }
+        if (actionRequest.executionOrder() != null && actionRequest.executionOrder() < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "executionOrder must be greater than 0");
+        }
+    }
+
+    private void validateActionOrders(List<TemplateActionRequest> actionRequests) {
+        boolean hasExplicitExecutionOrder = actionRequests.stream()
+                .anyMatch(actionRequest -> actionRequest.executionOrder() != null);
+        if (!hasExplicitExecutionOrder) {
+            return;
+        }
+
+        Set<Integer> seenExecutionOrders = new HashSet<>();
+        for (TemplateActionRequest actionRequest : actionRequests) {
+            if (actionRequest.executionOrder() == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "executionOrder must be present for every action when explicit ordering is used");
+            }
+            if (!seenExecutionOrders.add(actionRequest.executionOrder())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "executionOrder must be unique");
+            }
+        }
     }
 
     private List<ProductTemplateEntity> loadTemplates(RecordStatusFilter recordStatusFilter) {
@@ -158,7 +184,17 @@ public class ProductTemplateService {
     }
 
     private List<TemplateActionEntity> buildTemplateActions(List<TemplateActionRequest> actionRequests) {
-        return actionRequests.stream()
+        actionRequests.forEach(this::validateActionRequest);
+        validateActionOrders(actionRequests);
+
+        List<TemplateActionRequest> orderedActionRequests = actionRequests.stream()
+                .anyMatch(actionRequest -> actionRequest.executionOrder() != null)
+                ? actionRequests.stream()
+                        .sorted(Comparator.comparingInt(TemplateActionRequest::executionOrder))
+                        .toList()
+                : actionRequests;
+
+        return orderedActionRequests.stream()
                 .peek(this::validateActionRequest)
                 .map(actionRequest -> new TemplateActionEntity(
                         actionRequest.actionType(),

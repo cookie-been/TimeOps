@@ -209,6 +209,81 @@ class ProductTemplateControllerTest {
                 .andExpect(jsonPath("$.data.actions[0].stepDefinition.useReleaseVersion").value(true));
     }
 
+    @Test
+    void shouldRespectExplicitExecutionOrderOnUpdate() throws Exception {
+        String accessToken = login();
+
+        String templateResponse = mockMvc.perform(post("/api/templates")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"顺序模板",
+                                  "productCode":"delivery-order-template",
+                                  "supportedReleaseSources":["GIT"],
+                                  "defaultWorkDir":"/srv/delivery",
+                                  "defaultConfig":{"APP_PORT":"8080"},
+                                  "description":"顺序模板",
+                                  "actions":[
+                                    {
+                                      "actionType":"DEPLOY",
+                                      "mode":"SCRIPT",
+                                      "scriptBody":"./ops/deploy.sh"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String templateId = JsonPath.read(templateResponse, "$.data.id");
+
+        mockMvc.perform(put("/api/templates/{templateId}", templateId)
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"顺序模板",
+                                  "productCode":"delivery-order-template",
+                                  "supportedReleaseSources":["GIT"],
+                                  "defaultWorkDir":"/srv/delivery",
+                                  "defaultConfig":{"APP_PORT":"8080"},
+                                  "description":"显式顺序更新",
+                                  "actions":[
+                                    {
+                                      "actionType":"BACKUP",
+                                      "mode":"SCRIPT",
+                                      "scriptBody":"./ops/backup.sh",
+                                      "executionOrder":3
+                                    },
+                                    {
+                                      "actionType":"VERIFY",
+                                      "mode":"STEP",
+                                      "executionOrder":1,
+                                      "stepDefinition":{
+                                        "script":"./ops/verify.sh",
+                                        "useMergedConfigEnv":true
+                                      }
+                                    },
+                                    {
+                                      "actionType":"DEPLOY",
+                                      "mode":"SCRIPT",
+                                      "scriptBody":"./ops/deploy.sh",
+                                      "executionOrder":2
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.actions[0].actionType").value("VERIFY"))
+                .andExpect(jsonPath("$.data.actions[0].executionOrder").value(1))
+                .andExpect(jsonPath("$.data.actions[1].actionType").value("DEPLOY"))
+                .andExpect(jsonPath("$.data.actions[1].executionOrder").value(2))
+                .andExpect(jsonPath("$.data.actions[2].actionType").value("BACKUP"))
+                .andExpect(jsonPath("$.data.actions[2].executionOrder").value(3));
+    }
+
     private String login() throws Exception {
         String loginResponse = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -93,7 +93,7 @@ public class ProductTemplateEntity extends AbstractArchivableEntity {
     }
 
     public void addAction(TemplateActionEntity action) {
-        action.attachToTemplate(this, actions.size());
+        action.attachToTemplate(this, actions.size() + 1);
         actions.add(action);
     }
 

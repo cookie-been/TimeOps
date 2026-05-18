@@ -114,6 +114,7 @@ describe("TemplateListPage lifecycle", () => {
           {
             actionType: "DEPLOY",
             mode: "SCRIPT",
+            executionOrder: 1,
             scriptBody: "echo release"
           }
         ]
@@ -257,6 +258,7 @@ describe("TemplateListPage lifecycle", () => {
           {
             actionType: "DEPLOY",
             mode: "STEP",
+            executionOrder: 1,
             stepDefinition: {
               script: "./ops/verify.sh",
               useMergedConfigEnv: true,
@@ -364,16 +366,19 @@ describe("TemplateListPage lifecycle", () => {
           {
             actionType: "DEPLOY",
             mode: "SCRIPT",
+            executionOrder: 1,
             scriptBody: "./ops/deploy.sh"
           },
           {
             actionType: "BACKUP",
             mode: "SCRIPT",
+            executionOrder: 2,
             scriptBody: "./ops/backup.sh"
           },
           {
             actionType: "VERIFY",
             mode: "STEP",
+            executionOrder: 3,
             stepDefinition: {
               script: "./ops/verify.sh",
               useMergedConfigEnv: true
@@ -477,6 +482,7 @@ describe("TemplateListPage lifecycle", () => {
           {
             actionType: "VERIFY",
             mode: "STEP",
+            executionOrder: 1,
             stepDefinition: {
               script: "./ops/verify.sh",
               useMergedConfigEnv: true
@@ -485,11 +491,13 @@ describe("TemplateListPage lifecycle", () => {
           {
             actionType: "DEPLOY",
             mode: "SCRIPT",
+            executionOrder: 2,
             scriptBody: "./ops/deploy.sh"
           },
           {
             actionType: "BACKUP",
             mode: "SCRIPT",
+            executionOrder: 3,
             scriptBody: "./ops/backup.sh"
           }
         ]

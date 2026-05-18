@@ -193,7 +193,10 @@ function buildTemplateActions(
   });
 
   if (!item || item.actions.length === 0) {
-    return orderedEditableActions;
+    return orderedEditableActions.map((action, index) => ({
+      ...action,
+      executionOrder: index + 1
+    }));
   }
 
   const nextActions: TemplateActionPayload[] = [];
@@ -222,7 +225,10 @@ function buildTemplateActions(
     orderedEditableActionIndex += 1;
   }
 
-  return nextActions;
+  return nextActions.map((action, index) => ({
+    ...action,
+    executionOrder: index + 1
+  }));
 }
 
 export function TemplateListPage() {

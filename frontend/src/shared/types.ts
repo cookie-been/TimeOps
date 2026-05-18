@@ -87,6 +87,7 @@ export interface TemplateActionPayload {
   mode: string;
   scriptBody?: string;
   stepDefinition?: Record<string, unknown>;
+  executionOrder?: number;
 }
 
 export interface TemplateCreatePayload {

@@ -11,6 +11,7 @@ public record TemplateActionRequest(
         @NotNull(message = "mode must not be null")
         TemplateActionMode mode,
         String scriptBody,
-        JsonNode stepDefinition
+        JsonNode stepDefinition,
+        Integer executionOrder
 ) {
 }

@@ -1,18 +1,19 @@
 # TimeOps Repo State Handoff
 
-- Date: 2026-05-18
+- Date: 2026-05-19
 - Workspace: `/workspace/.worktrees/timeops-mvp-impl/TimeOps`
 - Branch: `timeops-mvp-impl`
 - Recent commits:
+  - `64a48ec feat: support template action ordering`
+  - `94c43d7 docs: refresh delivery platform handoff state`
   - `10b8bdc feat: expand template action editor`
-  - `44e0a88 feat: build TimeOps delivery operations platform`
 
 ## Snapshot
 
 - Working tree is currently clean.
 - The large platform baseline is now committed instead of living only in untracked files.
-- The follow-up template editor expansion is also committed.
-- Main continuity risk is no longer uncommitted work; it is making sure future work starts from the newer delivery-platform baseline instead of the stale upgrade plan.
+- The follow-up template editor expansion and manual template action ordering UI are committed.
+- Main continuity risk is no longer uncommitted work; it is making sure future work starts from the newer delivery-platform baseline and newer ordering semantics instead of the stale upgrade plan.
 
 ## What Is Already Present In The Worktree
 
@@ -171,10 +172,34 @@
   - `cd frontend && npm run build`
     - passed
 
+## Latest Ordering Semantics Follow-up On 2026-05-19
+
+- Template action payloads now carry explicit `executionOrder` values from the frontend instead of relying only on array position.
+- Backend template update/create handling now recognizes explicit ordering and sorts action requests by `executionOrder` before persisting them.
+- Backend validation now rejects invalid explicit ordering shapes:
+  - `executionOrder < 1`
+  - duplicate `executionOrder`
+  - partially-specified explicit ordering where only some actions provide `executionOrder`
+- Template action persistence is now normalized to 1-based order values instead of the earlier 0-based entity assignment.
+- Frontend mock template create/update paths now preserve explicit `executionOrder` when payloads already provide it.
+- New regression coverage:
+  - `TemplateListPage lifecycle > supports reordering enabled delivery actions before save`
+  - `ProductTemplateControllerTest.shouldRespectExplicitExecutionOrderOnUpdate`
+- Fresh verification after this follow-up:
+  - `cd backend && mvn -q test`
+    - passed
+    - 16 test classes
+    - 34 tests
+  - `cd frontend && npm test`
+    - passed
+    - 12 test files, 26 tests
+  - `cd frontend && npm run build`
+    - passed
+
 ## Recommended Immediate Next Steps
 
 1. Treat `docs/superpowers/plans/2026-05-18-project-delivery-platform-upgrade.md` as historical context only; it is intentionally marked stale at the top.
-2. Start the next feature from the committed baseline at `44e0a88` plus the template editor follow-up at `10b8bdc`.
-3. The next natural delivery-platform slice is backend/frontend cleanup around explicit `executionOrder` semantics so API payloads, mock data, and persistence all speak the same ordering model.
+2. Start the next feature from the committed baseline at `44e0a88`, the template editor follow-up at `10b8bdc`, and the template ordering slice at `64a48ec`.
+3. The next natural delivery-platform slice is higher-level template workflow authoring or richer operator-facing action summaries, not more low-level ordering cleanup.
 4. If new delivery-platform work is needed beyond that, write a fresh scoped plan instead of reusing the old unchecked upgrade checklist.
 5. Keep using this handoff file as the continuity anchor if context is compressed again.

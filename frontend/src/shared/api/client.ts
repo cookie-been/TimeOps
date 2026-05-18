@@ -607,7 +607,7 @@ export async function createTemplate(payload: TemplateCreatePayload): Promise<Te
           mode: action.mode,
           scriptBody: action.scriptBody,
           stepDefinition: action.stepDefinition,
-          executionOrder: index + 1
+          executionOrder: action.executionOrder ?? index + 1
         })),
         recordStatus: "ACTIVE"
       })
@@ -632,7 +632,7 @@ export async function createTemplate(payload: TemplateCreatePayload): Promise<Te
         mode: action.mode,
         scriptBody: action.scriptBody,
         stepDefinition: action.stepDefinition,
-        executionOrder: index + 1
+        executionOrder: action.executionOrder ?? index + 1
       })),
       recordStatus: "ACTIVE"
     });
@@ -656,7 +656,7 @@ export async function updateTemplate(templateId: string, payload: TemplateUpdate
           mode: action.mode,
           scriptBody: action.scriptBody,
           stepDefinition: action.stepDefinition,
-          executionOrder: index + 1
+          executionOrder: action.executionOrder ?? index + 1
         })),
         recordStatus: "ACTIVE"
       })
@@ -681,7 +681,7 @@ export async function updateTemplate(templateId: string, payload: TemplateUpdate
         mode: action.mode,
         scriptBody: action.scriptBody,
         stepDefinition: action.stepDefinition,
-        executionOrder: index + 1
+        executionOrder: action.executionOrder ?? index + 1
       })),
       recordStatus: "ACTIVE"
     });
