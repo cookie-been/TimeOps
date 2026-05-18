@@ -133,7 +133,7 @@
     - 16 test classes, all green
   - `cd frontend && npm test`
     - passed
-    - 12 test files, 25 tests
+    - 12 test files, 26 tests
   - `cd frontend && npm run build`
     - passed
 
@@ -155,9 +155,26 @@
   - `cd frontend && npm run build`
     - passed
 
+## Latest Frontend Follow-up On 2026-05-19
+
+- `TemplateListPage` now supports manual ordering for enabled delivery actions inside the template drawer.
+- Enabled actions are rendered as an ordered stack with per-action move up / move down controls.
+- Template submission now preserves the user-selected order in the outgoing `actions` payload instead of always falling back to the static action-type order.
+- The template list table now shows action order summaries such as `1.部署 2.备份 3.验证` instead of only showing an action count.
+- Ordering state is synchronized on submit so quick enable/disable changes do not race the payload builder.
+- New frontend regression coverage:
+  - `TemplateListPage lifecycle > supports reordering enabled delivery actions before save`
+- Fresh verification after this follow-up:
+  - `cd frontend && npm test`
+    - passed
+    - 12 test files, 26 tests
+  - `cd frontend && npm run build`
+    - passed
+
 ## Recommended Immediate Next Steps
 
 1. Treat `docs/superpowers/plans/2026-05-18-project-delivery-platform-upgrade.md` as historical context only; it is intentionally marked stale at the top.
 2. Start the next feature from the committed baseline at `44e0a88` plus the template editor follow-up at `10b8bdc`.
-3. If new delivery-platform work is needed, write a fresh scoped plan instead of reusing the old unchecked upgrade checklist.
-4. Keep using this handoff file as the continuity anchor if context is compressed again.
+3. The next natural delivery-platform slice is backend/frontend cleanup around explicit `executionOrder` semantics so API payloads, mock data, and persistence all speak the same ordering model.
+4. If new delivery-platform work is needed beyond that, write a fresh scoped plan instead of reusing the old unchecked upgrade checklist.
+5. Keep using this handoff file as the continuity anchor if context is compressed again.

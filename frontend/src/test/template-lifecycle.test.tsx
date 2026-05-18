@@ -383,4 +383,117 @@ describe("TemplateListPage lifecycle", () => {
       })
     );
   });
+
+  it("supports reordering enabled delivery actions before save", async () => {
+    fetchTemplatesMock.mockResolvedValueOnce([
+      {
+        id: "tpl-order",
+        name: "顺序模板",
+        productCode: "delivery-order",
+        supportedReleaseSources: ["GIT"],
+        defaultWorkDir: "/srv/delivery",
+        defaultConfig: { APP_PORT: "8080" },
+        description: "动作顺序调整",
+        actions: [
+          {
+            id: "act-deploy",
+            actionType: "DEPLOY",
+            mode: "SCRIPT",
+            scriptBody: "./ops/deploy.sh"
+          },
+          {
+            id: "act-backup",
+            actionType: "BACKUP",
+            mode: "SCRIPT",
+            scriptBody: "./ops/backup.sh"
+          },
+          {
+            id: "act-verify",
+            actionType: "VERIFY",
+            mode: "STEP",
+            stepDefinition: {
+              script: "./ops/verify.sh",
+              useMergedConfigEnv: true
+            }
+          }
+        ],
+        recordStatus: "ACTIVE"
+      }
+    ]);
+    updateTemplateMock.mockResolvedValueOnce({
+      id: "tpl-order",
+      name: "顺序模板",
+      productCode: "delivery-order",
+      supportedReleaseSources: ["GIT"],
+      defaultWorkDir: "/srv/delivery",
+      defaultConfig: { APP_PORT: "8080" },
+      description: "动作顺序调整",
+      actions: [
+        {
+          id: "act-verify",
+          actionType: "VERIFY",
+          mode: "STEP",
+          stepDefinition: {
+            script: "./ops/verify.sh",
+            useMergedConfigEnv: true
+          }
+        },
+        {
+          id: "act-deploy",
+          actionType: "DEPLOY",
+          mode: "SCRIPT",
+          scriptBody: "./ops/deploy.sh"
+        },
+        {
+          id: "act-backup",
+          actionType: "BACKUP",
+          mode: "SCRIPT",
+          scriptBody: "./ops/backup.sh"
+        }
+      ],
+      recordStatus: "ACTIVE"
+    });
+
+    render(<TemplateListPage />);
+
+    expect(await screen.findByText("顺序模板")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /编辑/ }));
+    expect(await screen.findByText("编辑产品模板")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "上移验证动作" }));
+    fireEvent.click(screen.getByRole("button", { name: "上移验证动作" }));
+    fireEvent.click(screen.getByRole("button", { name: /保\s*存/ }));
+
+    await waitFor(() =>
+      expect(updateTemplateMock).toHaveBeenCalledWith("tpl-order", {
+        name: "顺序模板",
+        productCode: "delivery-order",
+        supportedReleaseSources: ["GIT"],
+        defaultWorkDir: "/srv/delivery",
+        defaultConfig: { APP_PORT: "8080" },
+        description: "动作顺序调整",
+        actions: [
+          {
+            actionType: "VERIFY",
+            mode: "STEP",
+            stepDefinition: {
+              script: "./ops/verify.sh",
+              useMergedConfigEnv: true
+            }
+          },
+          {
+            actionType: "DEPLOY",
+            mode: "SCRIPT",
+            scriptBody: "./ops/deploy.sh"
+          },
+          {
+            actionType: "BACKUP",
+            mode: "SCRIPT",
+            scriptBody: "./ops/backup.sh"
+          }
+        ]
+      })
+    );
+  });
 });

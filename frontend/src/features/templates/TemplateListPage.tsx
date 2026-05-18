@@ -1,4 +1,12 @@
-import { EditOutlined, InboxOutlined, PlusOutlined, RollbackOutlined, SearchOutlined } from "@ant-design/icons";
+import {
+  DownOutlined,
+  EditOutlined,
+  InboxOutlined,
+  PlusOutlined,
+  RollbackOutlined,
+  SearchOutlined,
+  UpOutlined
+} from "@ant-design/icons";
 import { Button, Checkbox, Drawer, Form, Input, Segmented, Select, Space, Table, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -48,7 +56,69 @@ const editableActionMetas = [
   { type: "RESTART", label: "重启" }
 ] as const;
 
-const editableActionTypeSet = new Set<string>(editableActionMetas.map((meta) => meta.type));
+type EditableActionType = (typeof editableActionMetas)[number]["type"];
+
+const editableActionTypeSet = new Set<EditableActionType>(editableActionMetas.map((meta) => meta.type));
+const editableActionLabelMap = new Map<string, string>(editableActionMetas.map((meta) => [meta.type, meta.label]));
+
+function getActionLabel(actionType: string): string {
+  return editableActionLabelMap.get(actionType) ?? actionType;
+}
+
+function isEditableActionType(actionType: string): actionType is EditableActionType {
+  return editableActionTypeSet.has(actionType as EditableActionType);
+}
+
+function buildInitialEnabledActionOrder(item?: TemplateItem | null): EditableActionType[] {
+  if (!item) {
+    return ["DEPLOY"];
+  }
+
+  const orderedActionTypes = item.actions
+    .filter((action): action is TemplateItem["actions"][number] & { actionType: EditableActionType } => isEditableActionType(action.actionType))
+    .map((action) => action.actionType);
+
+  return Array.from(new Set(orderedActionTypes));
+}
+
+function syncEnabledActionOrder(
+  currentOrder: EditableActionType[],
+  actionValues: Record<string, TemplateActionFormValue> | undefined
+): EditableActionType[] {
+  const enabledTypes = editableActionMetas
+    .filter((meta) => actionValues?.[meta.type]?.enabled)
+    .map((meta) => meta.type);
+  const enabledTypeSet = new Set(enabledTypes);
+  const nextOrder = currentOrder.filter((type) => enabledTypeSet.has(type));
+
+  for (const type of enabledTypes) {
+    if (!nextOrder.includes(type)) {
+      nextOrder.push(type);
+    }
+  }
+
+  return nextOrder;
+}
+
+function moveActionType(
+  order: EditableActionType[],
+  actionType: EditableActionType,
+  direction: "up" | "down"
+): EditableActionType[] {
+  const index = order.indexOf(actionType);
+  if (index < 0) {
+    return order;
+  }
+
+  const targetIndex = direction === "up" ? index - 1 : index + 1;
+  if (targetIndex < 0 || targetIndex >= order.length) {
+    return order;
+  }
+
+  const nextOrder = [...order];
+  [nextOrder[index], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[index]];
+  return nextOrder;
+}
 
 function buildActionFormValues(item?: TemplateItem | null): Record<string, TemplateActionFormValue> {
   const values = Object.fromEntries(
@@ -68,7 +138,7 @@ function buildActionFormValues(item?: TemplateItem | null): Record<string, Templ
   }
 
   for (const action of item.actions) {
-    if (!editableActionTypeSet.has(action.actionType)) {
+    if (!isEditableActionType(action.actionType)) {
       continue;
     }
     values[action.actionType] = {
@@ -106,7 +176,8 @@ function buildActionPayload(
 
 function buildTemplateActions(
   item: TemplateItem | null,
-  actionValues: Record<string, TemplateActionFormValue> | undefined
+  actionValues: Record<string, TemplateActionFormValue> | undefined,
+  enabledActionOrder: EditableActionType[]
 ): TemplateActionPayload[] {
   const builtEditableActions = new Map<string, TemplateActionPayload>();
   for (const meta of editableActionMetas) {
@@ -116,18 +187,20 @@ function buildTemplateActions(
     }
   }
 
+  const orderedEditableActions = enabledActionOrder.flatMap((type) => {
+    const payload = builtEditableActions.get(type);
+    return payload ? [payload] : [];
+  });
+
   if (!item || item.actions.length === 0) {
-    return editableActionMetas.flatMap((meta) => {
-      const payload = builtEditableActions.get(meta.type);
-      return payload ? [payload] : [];
-    });
+    return orderedEditableActions;
   }
 
   const nextActions: TemplateActionPayload[] = [];
-  const consumedActionTypes = new Set<string>();
+  let orderedEditableActionIndex = 0;
 
   for (const action of item.actions) {
-    if (!editableActionTypeSet.has(action.actionType)) {
+    if (!isEditableActionType(action.actionType)) {
       nextActions.push({
         actionType: action.actionType,
         mode: action.mode,
@@ -137,18 +210,16 @@ function buildTemplateActions(
       continue;
     }
 
-    consumedActionTypes.add(action.actionType);
-    const payload = builtEditableActions.get(action.actionType);
+    const payload = orderedEditableActions[orderedEditableActionIndex];
     if (payload) {
       nextActions.push(payload);
+      orderedEditableActionIndex += 1;
     }
   }
 
-  for (const meta of editableActionMetas) {
-    const payload = builtEditableActions.get(meta.type);
-    if (payload && !consumedActionTypes.has(meta.type)) {
-      nextActions.push(payload);
-    }
+  while (orderedEditableActionIndex < orderedEditableActions.length) {
+    nextActions.push(orderedEditableActions[orderedEditableActionIndex]);
+    orderedEditableActionIndex += 1;
   }
 
   return nextActions;
@@ -163,7 +234,9 @@ export function TemplateListPage() {
   const [recordStatusFilter, setRecordStatusFilter] = useState<RecordStatusFilter>("ACTIVE");
   const [keyword, setKeyword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [enabledActionOrder, setEnabledActionOrder] = useState<EditableActionType[]>([]);
   const [form] = Form.useForm<TemplateFormValues>();
+  const watchedActions = Form.useWatch("actions", form);
 
   useEffect(() => {
     setLoading(true);
@@ -171,6 +244,14 @@ export function TemplateListPage() {
       .then((data) => setItems(data))
       .finally(() => setLoading(false));
   }, [recordStatusFilter]);
+
+  useEffect(() => {
+    if (!drawerOpen) {
+      return;
+    }
+
+    setEnabledActionOrder((currentOrder) => syncEnabledActionOrder(currentOrder, watchedActions));
+  }, [drawerOpen, watchedActions]);
 
   const filteredItems = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase();
@@ -189,15 +270,18 @@ export function TemplateListPage() {
     setDrawerMode("create");
     setEditingItem(null);
     form.resetFields();
+    const nextActionValues = buildActionFormValues();
     form.setFieldsValue({
-      actions: buildActionFormValues()
+      actions: nextActionValues
     });
+    setEnabledActionOrder(buildInitialEnabledActionOrder());
     setDrawerOpen(true);
   };
 
   const openEditDrawer = (item: TemplateItem) => {
     setDrawerMode("edit");
     setEditingItem(item);
+    const nextActionValues = buildActionFormValues(item);
     form.setFieldsValue({
       name: item.name,
       productCode: item.productCode,
@@ -205,8 +289,9 @@ export function TemplateListPage() {
       defaultWorkDir: item.defaultWorkDir,
       defaultConfigText: formatJsonObjectInput(item.defaultConfig),
       description: item.description,
-      actions: buildActionFormValues(item)
+      actions: nextActionValues
     });
+    setEnabledActionOrder(buildInitialEnabledActionOrder(item));
     setDrawerOpen(true);
   };
 
@@ -214,10 +299,12 @@ export function TemplateListPage() {
     setDrawerOpen(false);
     setDrawerMode("create");
     setEditingItem(null);
+    setEnabledActionOrder([]);
     form.resetFields();
   };
 
   const handleSubmit = async (values: TemplateFormValues) => {
+    const nextEnabledActionOrder = syncEnabledActionOrder(enabledActionOrder, values.actions);
     const payload: TemplateUpdatePayload = {
       name: values.name,
       productCode: values.productCode,
@@ -225,11 +312,12 @@ export function TemplateListPage() {
       defaultWorkDir: values.defaultWorkDir,
       defaultConfig: parseJsonObjectInput(values.defaultConfigText),
       description: values.description,
-      actions: buildTemplateActions(editingItem, values.actions)
+      actions: buildTemplateActions(editingItem, values.actions, nextEnabledActionOrder)
     };
 
     setSubmitting(true);
     try {
+      setEnabledActionOrder(nextEnabledActionOrder);
       const nextItem =
         drawerMode === "edit" && editingItem
           ? await updateTemplate(editingItem.id, payload)
@@ -267,6 +355,7 @@ export function TemplateListPage() {
 
   const archivedCount = items.filter((item) => item.recordStatus === "ARCHIVED").length;
   const actionCount = items.reduce((total, item) => total + item.actions.length, 0);
+  const enabledActionTypes = enabledActionOrder.filter((type) => watchedActions?.[type]?.enabled);
 
   return (
     <>
@@ -323,9 +412,18 @@ export function TemplateListPage() {
             },
             { title: "默认目录", dataIndex: "defaultWorkDir", key: "defaultWorkDir", render: renderNullable },
             {
-              title: "动作数量",
+              title: "动作顺序",
               key: "actions",
-              render: (_, record) => record.actions.length
+              render: (_, record) =>
+                record.actions.length === 0 ? (
+                  renderNullable(undefined)
+                ) : (
+                  <Space size={4} wrap>
+                    {record.actions.map((action, index) => (
+                      <span key={action.id ?? `${action.actionType}-${index}`}>{`${index + 1}.${getActionLabel(action.actionType)}`}</span>
+                    ))}
+                  </Space>
+                )
             },
             {
               title: "记录状态",
@@ -396,57 +494,99 @@ export function TemplateListPage() {
           <Form.Item label="默认配置(JSON)" name="defaultConfigText">
             <Input.TextArea rows={4} placeholder='{"APP_PORT":"8080"}' />
           </Form.Item>
-          {editableActionMetas.map((meta) => (
-            <div key={meta.type}>
-              <Form.Item name={["actions", meta.type, "enabled"]} valuePropName="checked">
-                <Checkbox>{`启用${meta.label}动作`}</Checkbox>
-              </Form.Item>
-              <Form.Item shouldUpdate noStyle>
-                {({ getFieldValue }) => {
-                  const enabled = getFieldValue(["actions", meta.type, "enabled"]);
-                  const mode = getFieldValue(["actions", meta.type, "mode"]) ?? "SCRIPT";
-
-                  if (!enabled) {
+          <Form.Item label="启用动作">
+            <Space direction="vertical" size={4} style={{ width: "100%" }}>
+              {editableActionMetas.map((meta) => (
+                <Form.Item key={meta.type} name={["actions", meta.type, "enabled"]} valuePropName="checked" noStyle>
+                  <Checkbox>{`启用${meta.label}动作`}</Checkbox>
+                </Form.Item>
+              ))}
+            </Space>
+          </Form.Item>
+          {enabledActionTypes.length > 0 ? (
+            <Form.Item label="动作执行顺序">
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                {enabledActionTypes.map((actionType, index) => {
+                  const meta = editableActionMetas.find((currentMeta) => currentMeta.type === actionType);
+                  if (!meta) {
                     return null;
                   }
 
                   return (
-                    <>
-                      <Form.Item label={`${meta.label}动作模式`} name={["actions", meta.type, "mode"]}>
-                        <Segmented
-                          aria-label={`${meta.label}动作模式`}
-                          options={[
-                            { label: "脚本", value: "SCRIPT" },
-                            { label: "步骤", value: "STEP" }
-                          ]}
-                        />
-                      </Form.Item>
-                      {mode === "STEP" ? (
-                        <Form.Item
-                          label={`${meta.label}步骤定义(JSON)`}
-                          name={["actions", meta.type, "stepDefinitionText"]}
-                          rules={[{ required: true, message: `请输入${meta.label}步骤定义 JSON` }]}
-                        >
-                          <Input.TextArea
-                            rows={6}
-                            placeholder={`{"script":"./ops/${meta.type.toLowerCase()}.sh","useMergedConfigEnv":true}`}
+                    <div
+                      key={meta.type}
+                      style={{
+                        border: "1px solid #d9d9d9",
+                        borderRadius: 8,
+                        padding: 16
+                      }}
+                    >
+                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                        <Space style={{ justifyContent: "space-between", width: "100%" }} align="start">
+                          <strong>{`${index + 1}. ${meta.label}`}</strong>
+                          <Space size={8}>
+                            <Button
+                              aria-label={`上移${meta.label}动作`}
+                              title={`上移${meta.label}动作`}
+                              icon={<UpOutlined />}
+                              size="small"
+                              disabled={index === 0}
+                              onClick={() => setEnabledActionOrder((currentOrder) => moveActionType(currentOrder, meta.type, "up"))}
+                            />
+                            <Button
+                              aria-label={`下移${meta.label}动作`}
+                              title={`下移${meta.label}动作`}
+                              icon={<DownOutlined />}
+                              size="small"
+                              disabled={index === enabledActionTypes.length - 1}
+                              onClick={() =>
+                                setEnabledActionOrder((currentOrder) => moveActionType(currentOrder, meta.type, "down"))
+                              }
+                            />
+                          </Space>
+                        </Space>
+                        <Form.Item label={`${meta.label}动作模式`} name={["actions", meta.type, "mode"]}>
+                          <Segmented
+                            aria-label={`${meta.label}动作模式`}
+                            options={[
+                              { label: "脚本", value: "SCRIPT" },
+                              { label: "步骤", value: "STEP" }
+                            ]}
                           />
                         </Form.Item>
-                      ) : (
-                        <Form.Item
-                          label={`${meta.label}脚本`}
-                          name={["actions", meta.type, "scriptBody"]}
-                          rules={[{ required: true, message: `请输入${meta.label}脚本` }]}
-                        >
-                          <Input.TextArea rows={5} />
+                        <Form.Item shouldUpdate noStyle>
+                          {({ getFieldValue }) => {
+                            const mode = getFieldValue(["actions", meta.type, "mode"]) ?? "SCRIPT";
+
+                            return mode === "STEP" ? (
+                              <Form.Item
+                                label={`${meta.label}步骤定义(JSON)`}
+                                name={["actions", meta.type, "stepDefinitionText"]}
+                                rules={[{ required: true, message: `请输入${meta.label}步骤定义 JSON` }]}
+                              >
+                                <Input.TextArea
+                                  rows={6}
+                                  placeholder={`{"script":"./ops/${meta.type.toLowerCase()}.sh","useMergedConfigEnv":true}`}
+                                />
+                              </Form.Item>
+                            ) : (
+                              <Form.Item
+                                label={`${meta.label}脚本`}
+                                name={["actions", meta.type, "scriptBody"]}
+                                rules={[{ required: true, message: `请输入${meta.label}脚本` }]}
+                              >
+                                <Input.TextArea rows={5} />
+                              </Form.Item>
+                            );
+                          }}
                         </Form.Item>
-                      )}
-                    </>
+                      </Space>
+                    </div>
                   );
-                }}
-              </Form.Item>
-            </div>
-          ))}
+                })}
+              </Space>
+            </Form.Item>
+          ) : null}
           <Form.Item label="说明" name="description">
             <Input.TextArea rows={3} />
           </Form.Item>
