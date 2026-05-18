@@ -1,5 +1,6 @@
 package com.timeops.platform.customer.dto;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 public record CustomerResponse(
@@ -8,6 +9,8 @@ public record CustomerResponse(
         String contactName,
         String contactPhone,
         String contactEmail,
-        String notes
+        String notes,
+        String recordStatus,
+        OffsetDateTime archivedAt
 ) {
 }

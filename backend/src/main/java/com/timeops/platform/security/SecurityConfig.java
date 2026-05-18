@@ -1,6 +1,7 @@
 package com.timeops.platform.security;
 
 import com.timeops.platform.user.PlatformUserDetailsService;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -43,7 +44,9 @@ public class SecurityConfig {
                 .exceptionHandling(exceptionHandlingConfigurer ->
                         exceptionHandlingConfigurer.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(authorizeHttpRequestsConfigurer -> authorizeHttpRequestsConfigurer
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(
+                                "/error",
                                 SecurityPathConstants.HEALTH_ENDPOINT,
                                 SecurityPathConstants.HEALTH_ENDPOINT_PATTERN,
                                 SecurityPathConstants.AUTH_LOGIN_ENDPOINT

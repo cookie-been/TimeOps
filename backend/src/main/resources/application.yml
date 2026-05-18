@@ -22,3 +22,8 @@ timeops:
     jwt:
       secret: ${TIMEOPS_JWT_SECRET}
       expiration-seconds: ${TIMEOPS_JWT_EXPIRATION_SECONDS:86400}
+  ssh:
+    mode: ${TIMEOPS_SSH_MODE:simulated}
+    connect-timeout-millis: ${TIMEOPS_SSH_CONNECT_TIMEOUT_MILLIS:5000}
+    command-timeout-millis: ${TIMEOPS_SSH_COMMAND_TIMEOUT_MILLIS:1800000}
+    strict-host-key-checking: ${TIMEOPS_SSH_STRICT_HOST_KEY_CHECKING:false}

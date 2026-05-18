@@ -1,0 +1,350 @@
+:root {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #f3f6fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  min-width: 1280px;
+  background: #f3f6fb;
+}
+
+.timeops-shell {
+  min-height: 100vh;
+}
+
+.timeops-sider {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #16243c;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.02);
+}
+
+.timeops-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 20px 14px;
+}
+
+.timeops-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #2f6df6, #1f4fc1);
+  color: #f8fbff;
+  font-size: 18px;
+  box-shadow: 0 12px 24px rgba(31, 79, 193, 0.28);
+}
+
+.timeops-brand-subtitle {
+  color: #8ea0bc;
+  font-size: 12px;
+}
+
+.timeops-env-banner {
+  margin: 0 16px 16px;
+  padding: 10px 12px;
+  border: 1px solid #1e2b44;
+  border-radius: 8px;
+  color: #d8e1ef;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.timeops-env-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #3dd598;
+  box-shadow: 0 0 0 4px rgba(61, 213, 152, 0.12);
+}
+
+.timeops-nav-menu {
+  flex: 1;
+  border-inline-end: none;
+  background: transparent;
+  padding: 0 12px 12px;
+}
+
+.timeops-nav-menu .ant-menu-item-group-title {
+  padding: 10px 12px 6px;
+  font-size: 11px;
+  color: #6e7f99;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.timeops-sider-footer {
+  margin: 16px;
+  padding: 14px 14px 12px;
+  border: 1px solid #1e2b44;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.timeops-sider-footer-label {
+  display: block;
+  margin-bottom: 10px;
+  color: #8ea0bc;
+  font-size: 12px;
+}
+
+.timeops-header {
+  height: auto;
+  line-height: normal;
+  padding: 18px 24px;
+  border-bottom: 1px solid #e7edf5;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.timeops-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timeops-header-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #667085;
+}
+
+.timeops-header-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.timeops-user-avatar {
+  background: linear-gradient(145deg, #2f6df6, #1f4fc1);
+  box-shadow: 0 10px 24px rgba(36, 104, 242, 0.2);
+}
+
+.timeops-content {
+  padding: 24px;
+}
+
+.timeops-page {
+  padding: 0 0 24px;
+}
+
+.timeops-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.timeops-page-header-main {
+  max-width: 760px;
+}
+
+.timeops-page-header-eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #2468f2;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.timeops-page-header-side {
+  min-width: 360px;
+}
+
+.timeops-page-header-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(104px, 1fr));
+  gap: 12px;
+}
+
+.timeops-page-header-stat {
+  min-width: 104px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #e7edf5;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 40, 0.04);
+}
+
+.timeops-data-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.timeops-data-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #e7edf5;
+  border-radius: 10px;
+}
+
+.timeops-data-surface {
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #e7edf5;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 40, 0.04);
+}
+
+.timeops-table .ant-table {
+  background: transparent;
+}
+
+.timeops-table .ant-table-thead > tr > th {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.timeops-table .ant-table-tbody > tr > td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+  vertical-align: middle;
+}
+
+.timeops-row-archived > td {
+  background: #fafbfc;
+  color: #667085;
+}
+
+.timeops-row-archived .timeops-code-pill {
+  background: #f5f7fa;
+  border-color: #e5e7eb;
+  color: #667085;
+}
+
+.timeops-table .ant-pagination {
+  padding: 0 16px 16px;
+}
+
+.timeops-status-tag {
+  min-width: 64px;
+  text-align: center;
+  border-radius: 999px;
+  font-size: 12px;
+  padding-inline: 10px;
+}
+
+.timeops-code-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #344054;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.timeops-secondary-cell {
+  color: #667085;
+}
+
+.timeops-log-block {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid #e7edf5;
+  background: #f8fbff;
+  color: #182230;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.timeops-login-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(620px, 1.5fr) minmax(420px, 540px);
+  background:
+    radial-gradient(circle at top left, rgba(36, 104, 242, 0.18), transparent 34%),
+    linear-gradient(135deg, #0f1728, #15243d 52%, #1d3456 100%);
+}
+
+.timeops-login-brand {
+  padding: 56px 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #f8fbff;
+}
+
+.timeops-login-eyebrow {
+  color: #a8bfdc;
+  font-size: 13px;
+}
+
+.timeops-login-brand .ant-typography,
+.timeops-login-brand .ant-typography-secondary {
+  color: inherit;
+}
+
+.timeops-login-brand .ant-typography-secondary {
+  color: #a8bfdc;
+}
+
+.timeops-login-points {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.timeops-login-point {
+  padding: 18px 18px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+}
+
+.timeops-login-side {
+  background: linear-gradient(180deg, #f8fbff, #eef3fb);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.timeops-login-card {
+  width: min(100%, 388px);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(15, 23, 40, 0.12);
+}

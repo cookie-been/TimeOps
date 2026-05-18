@@ -1,0 +1,63 @@
+name: timeops-real
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: timeops-real-postgres
+    environment:
+      POSTGRES_DB: ${TIMEOPS_REAL_DB_NAME:-timeops}
+      POSTGRES_USER: ${TIMEOPS_REAL_DB_USERNAME:-timeops}
+      POSTGRES_PASSWORD: ${TIMEOPS_REAL_DB_PASSWORD:-timeops}
+    volumes:
+      - postgres-real-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TIMEOPS_REAL_DB_USERNAME:-timeops} -d ${TIMEOPS_REAL_DB_NAME:-timeops}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: timeops-real-backend
+    environment:
+      TIMEOPS_DB_HOST: postgres
+      TIMEOPS_DB_PORT: 5432
+      TIMEOPS_DB_NAME: ${TIMEOPS_REAL_DB_NAME:-timeops}
+      TIMEOPS_DB_USERNAME: ${TIMEOPS_REAL_DB_USERNAME:-timeops}
+      TIMEOPS_DB_PASSWORD: ${TIMEOPS_REAL_DB_PASSWORD:-timeops}
+      TIMEOPS_INITIAL_ADMIN_PASSWORD_HASH: $$2b$$12$$tnb0qj6vbJ/aO9MGIFHgdO7t9Oghu9Erps0EG3rqA6n6/65NuXPX6
+      TIMEOPS_CRYPTO_SECRET: ${TIMEOPS_CRYPTO_SECRET:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+      TIMEOPS_JWT_SECRET: ${TIMEOPS_JWT_SECRET:-pWG2A+9W/uFdijn9Li2AEFzrQIMSsd85GPQJ0tw03YA=}
+      TIMEOPS_JWT_EXPIRATION_SECONDS: ${TIMEOPS_JWT_EXPIRATION_SECONDS:-86400}
+      TIMEOPS_SSH_MODE: real
+      TIMEOPS_SSH_STRICT_HOST_KEY_CHECKING: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${TIMEOPS_REAL_BACKEND_PORT:-8081}:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: /
+    container_name: timeops-real-frontend
+    depends_on:
+      - backend
+    ports:
+      - "${TIMEOPS_REAL_FRONTEND_PORT:-8088}:80"
+
+  ssh-target:
+    image: linuxserver/openssh-server:latest
+    container_name: timeops-real-ssh-target
+    environment:
+      PASSWORD_ACCESS: true
+      USER_NAME: ${TIMEOPS_REAL_SSH_USER:-tester}
+      USER_PASSWORD: ${TIMEOPS_REAL_SSH_PASSWORD:-Passw0rd123!}
+      SUDO_ACCESS: true
+      TZ: UTC
+
+volumes:
+  postgres-real-data:

@@ -1,5 +1,6 @@
 package com.timeops.platform.customer;
 
+import com.timeops.platform.common.jpa.AbstractArchivableEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -7,12 +8,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 @Entity
 @Table(name = "customer")
-public class CustomerEntity {
+public class CustomerEntity extends AbstractArchivableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -41,11 +43,21 @@ public class CustomerEntity {
     }
 
     public CustomerEntity(String name, String contactName, String contactPhone, String contactEmail, String notes) {
+        super(buildActiveKey(name));
         this.name = name;
         this.contactName = contactName;
         this.contactPhone = contactPhone;
         this.contactEmail = contactEmail;
         this.notes = notes;
+    }
+
+    public void update(String name, String contactName, String contactPhone, String contactEmail, String notes) {
+        this.name = name;
+        this.contactName = contactName;
+        this.contactPhone = contactPhone;
+        this.contactEmail = contactEmail;
+        this.notes = notes;
+        refreshActiveKey(buildActiveKey(name));
     }
 
     public UUID getId() {
@@ -70,5 +82,13 @@ public class CustomerEntity {
 
     public String getNotes() {
         return notes;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public static String buildActiveKey(String name) {
+        return name.trim().toLowerCase(Locale.ROOT);
     }
 }

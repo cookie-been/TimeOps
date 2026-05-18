@@ -1,5 +1,6 @@
 package com.timeops.platform.server;
 
+import com.timeops.platform.common.jpa.AbstractArchivableEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -11,12 +12,13 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 @Entity
 @Table(name = "managed_server")
-public class ServerEntity {
+public class ServerEntity extends AbstractArchivableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -68,6 +70,7 @@ public class ServerEntity {
             List<String> tags,
             ConnectivityStatus connectivityStatus,
             String notes) {
+        super(buildActiveKey(host, sshPort));
         this.customerId = customerId;
         this.host = host;
         this.sshPort = sshPort;
@@ -77,6 +80,26 @@ public class ServerEntity {
         this.tags = tags;
         this.connectivityStatus = connectivityStatus;
         this.notes = notes;
+    }
+
+    public void update(
+            UUID customerId,
+            String host,
+            Integer sshPort,
+            String sshUsername,
+            String sshPasswordCipher,
+            String osLabel,
+            List<String> tags,
+            String notes) {
+        this.customerId = customerId;
+        this.host = host;
+        this.sshPort = sshPort;
+        this.sshUsername = sshUsername;
+        this.sshPasswordCipher = sshPasswordCipher;
+        this.osLabel = osLabel;
+        this.tags = tags;
+        this.notes = notes;
+        refreshActiveKey(buildActiveKey(host, sshPort));
     }
 
     public UUID getId() {
@@ -117,5 +140,13 @@ public class ServerEntity {
 
     public String getNotes() {
         return notes;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public static String buildActiveKey(String host, Integer sshPort) {
+        return host.trim().toLowerCase(Locale.ROOT) + ":" + sshPort;
     }
 }

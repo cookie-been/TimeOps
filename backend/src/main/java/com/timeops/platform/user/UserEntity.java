@@ -10,6 +10,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.security.core.GrantedAuthority;
@@ -45,6 +46,21 @@ public class UserEntity implements UserDetails {
     protected UserEntity() {
     }
 
+    public UserEntity(
+            UUID id,
+            String username,
+            String displayName,
+            String passwordHash,
+            boolean enabled,
+            Set<RoleEntity> roles) {
+        this.id = Objects.requireNonNull(id, "id must not be null");
+        this.username = Objects.requireNonNull(username, "username must not be null");
+        this.displayName = Objects.requireNonNull(displayName, "displayName must not be null");
+        this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash must not be null");
+        this.enabled = enabled;
+        replaceRoles(roles);
+    }
+
     public UUID getId() {
         return id;
     }
@@ -55,6 +71,17 @@ public class UserEntity implements UserDetails {
 
     public Set<RoleEntity> getRoles() {
         return roles;
+    }
+
+    public void replaceRoles(Set<RoleEntity> roles) {
+        this.roles.clear();
+        if (roles != null) {
+            this.roles.addAll(roles);
+        }
+    }
+
+    public void changeEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     @Override

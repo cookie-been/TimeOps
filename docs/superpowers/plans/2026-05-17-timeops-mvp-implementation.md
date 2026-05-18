@@ -1,6 +1,6 @@
 # TimeOps MVP Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 构建一个面向内部运维团队的 TimeOps MVP，实现客户与服务器管理、产品模板、部署实例、发布版本、异步 SSH 执行、RBAC 和审计日志。
 
@@ -67,7 +67,7 @@
 - Create: `backend/src/main/resources/application.yml`
 - Create: `backend/src/test/java/com/timeops/platform/common/web/HealthControllerTest.java`
 
-- [ ] **Step 1: 写一个失败的健康检查测试**
+- [x] **Step 1: 写一个失败的健康检查测试**
 
 ```java
 package com.timeops.platform.common.web;
@@ -99,7 +99,7 @@ class HealthControllerTest {
 }
 ```
 
-- [ ] **Step 2: 运行测试，确认当前工程尚未搭起**
+- [x] **Step 2: 运行测试，确认当前工程尚未搭起**
 
 Run: `cd backend && mvn test -Dtest=HealthControllerTest`
 
@@ -108,7 +108,7 @@ Expected:
 - `The goal you specified requires a project to execute but there is no POM in this directory`
 - 或应用类不存在导致编译失败
 
-- [ ] **Step 3: 写最小可运行后端骨架**
+- [x] **Step 3: 写最小可运行后端骨架**
 
 `backend/pom.xml`
 
@@ -204,7 +204,7 @@ server:
   port: 8080
 ```
 
-- [ ] **Step 4: 重新运行测试，确认基础后端通过**
+- [x] **Step 4: 重新运行测试，确认基础后端通过**
 
 Run: `cd backend && mvn test -Dtest=HealthControllerTest`
 
@@ -213,7 +213,7 @@ Expected:
 - `BUILD SUCCESS`
 - `Tests run: 1, Failures: 0`
 
-- [ ] **Step 5: 提交基础骨架**
+- [x] **Step 5: 提交基础骨架**
 
 ```bash
 git add backend
@@ -235,7 +235,7 @@ git commit -m "feat: scaffold backend application"
 - Create: `backend/src/main/java/com/timeops/platform/user/AuthService.java`
 - Create: `backend/src/test/java/com/timeops/platform/user/AuthControllerTest.java`
 
-- [ ] **Step 1: 先写认证与权限测试**
+- [x] **Step 1: 先写认证与权限测试**
 
 ```java
 package com.timeops.platform.user;
@@ -278,7 +278,7 @@ class AuthControllerTest {
 }
 ```
 
-- [ ] **Step 2: 运行测试，确认权限模块尚未实现**
+- [x] **Step 2: 运行测试，确认权限模块尚未实现**
 
 Run: `cd backend && mvn test -Dtest=AuthControllerTest`
 
@@ -286,7 +286,7 @@ Expected:
 
 - `404` 或 Spring 容器找不到认证相关 Bean
 
-- [ ] **Step 3: 引入数据库、安全与 JWT 的最小实现**
+- [x] **Step 3: 引入数据库、安全与 JWT 的最小实现**
 
 `backend/pom.xml` 追加依赖：
 
@@ -454,7 +454,7 @@ class AuthController {
 }
 ```
 
-- [ ] **Step 4: 跑测试并把失败点压到最小，再补齐 JWT 正式实现**
+- [x] **Step 4: 跑测试并把失败点压到最小，再补齐 JWT 正式实现**
 
 Run: `cd backend && mvn test -Dtest=AuthControllerTest`
 
@@ -473,7 +473,7 @@ public record LoginResponse(String accessToken, String tokenType) {}
 return ApiResponse.ok(new LoginResponse(jwtService.generateToken(user), "Bearer"));
 ```
 
-- [ ] **Step 5: 提交认证基础**
+- [x] **Step 5: 提交认证基础**
 
 ```bash
 git add backend
@@ -491,7 +491,7 @@ git commit -m "feat: add auth and security foundation"
 - Create: `backend/src/main/java/com/timeops/platform/server/CredentialCryptoService.java`
 - Create: `backend/src/test/java/com/timeops/platform/server/ServerControllerTest.java`
 
-- [ ] **Step 1: 先写服务器密码加密与脱敏测试**
+- [x] **Step 1: 先写服务器密码加密与脱敏测试**
 
 ```java
 package com.timeops.platform.server;
@@ -554,7 +554,7 @@ class ServerControllerTest {
 }
 ```
 
-- [ ] **Step 2: 运行测试，确认领域对象还不存在**
+- [x] **Step 2: 运行测试，确认领域对象还不存在**
 
 Run: `cd backend && mvn test -Dtest=CredentialCryptoServiceTest,ServerControllerTest`
 
@@ -562,7 +562,7 @@ Expected:
 
 - 编译失败，提示类不存在
 
-- [ ] **Step 3: 创建客户、服务器与加密服务**
+- [x] **Step 3: 创建客户、服务器与加密服务**
 
 `backend/src/main/resources/db/migration/V2__init_customer_server.sql`
 
@@ -654,7 +654,7 @@ public record ServerSummaryResponse(
 
 注意：正式实现时要把固定 IV 改成随机 IV 并与密文一同存储，不允许把上面的最小实现直接带到生产代码里。
 
-- [ ] **Step 4: 运行测试，确认密码逻辑和脱敏读接口通过**
+- [x] **Step 4: 运行测试，确认密码逻辑和脱敏读接口通过**
 
 Run: `cd backend && mvn test -Dtest=CredentialCryptoServiceTest,ServerControllerTest`
 
@@ -663,7 +663,7 @@ Expected:
 - `BUILD SUCCESS`
 - 读接口返回 `sshPasswordMasked = ********`
 
-- [ ] **Step 5: 提交客户与服务器基础**
+- [x] **Step 5: 提交客户与服务器基础**
 
 ```bash
 git add backend
@@ -681,7 +681,7 @@ git commit -m "feat: add customer and server management"
 - Create: `backend/src/main/java/com/timeops/platform/release/ReleaseController.java`
 - Create: `backend/src/test/java/com/timeops/platform/template/ProductTemplateControllerTest.java`
 
-- [ ] **Step 1: 先写模板与发布版本测试**
+- [x] **Step 1: 先写模板与发布版本测试**
 
 ```java
 package com.timeops.platform.template;
@@ -727,7 +727,7 @@ class ProductTemplateControllerTest {
 }
 ```
 
-- [ ] **Step 2: 运行测试，确认模板模块尚不存在**
+- [x] **Step 2: 运行测试，确认模板模块尚不存在**
 
 Run: `cd backend && mvn test -Dtest=ProductTemplateControllerTest`
 
@@ -735,7 +735,7 @@ Expected:
 
 - 编译失败或 `404`
 
-- [ ] **Step 3: 实现模板与发布版本最小领域模型**
+- [x] **Step 3: 实现模板与发布版本最小领域模型**
 
 `backend/src/main/resources/db/migration/V3__init_template_release.sql`
 
@@ -805,7 +805,7 @@ public enum ReleaseSourceType {
 }
 ```
 
-- [ ] **Step 4: 再跑测试，并补一个发布版本创建测试**
+- [x] **Step 4: 再跑测试，并补一个发布版本创建测试**
 
 Run: `cd backend && mvn test -Dtest=ProductTemplateControllerTest`
 
@@ -823,7 +823,7 @@ Expected:
 
 - 两组测试通过
 
-- [ ] **Step 5: 提交模板与版本模块**
+- [x] **Step 5: 提交模板与版本模块**
 
 ```bash
 git add backend
@@ -839,7 +839,7 @@ git commit -m "feat: add product templates and releases"
 - Create: `backend/src/main/java/com/timeops/platform/instance/DeploymentInstanceController.java`
 - Create: `backend/src/test/java/com/timeops/platform/instance/InstanceConfigMergeServiceTest.java`
 
-- [ ] **Step 1: 先写实例配置合并测试**
+- [x] **Step 1: 先写实例配置合并测试**
 
 ```java
 package com.timeops.platform.instance;
@@ -867,7 +867,7 @@ class InstanceConfigMergeServiceTest {
 }
 ```
 
-- [ ] **Step 2: 运行测试，确认实例模块还不存在**
+- [x] **Step 2: 运行测试，确认实例模块还不存在**
 
 Run: `cd backend && mvn test -Dtest=InstanceConfigMergeServiceTest`
 
@@ -875,7 +875,7 @@ Expected:
 
 - 编译失败
 
-- [ ] **Step 3: 创建部署实例表与合并服务**
+- [x] **Step 3: 创建部署实例表与合并服务**
 
 `backend/src/main/resources/db/migration/V4__init_deployment_instance.sql`
 
@@ -929,7 +929,7 @@ public record DeploymentInstanceResponse(
 ) {}
 ```
 
-- [ ] **Step 4: 运行测试，再补实例 CRUD 冒烟测试**
+- [x] **Step 4: 运行测试，再补实例 CRUD 冒烟测试**
 
 Run: `cd backend && mvn test -Dtest=InstanceConfigMergeServiceTest`
 
@@ -947,7 +947,7 @@ Expected:
 
 - 配置合并和实例创建测试均通过
 
-- [ ] **Step 5: 提交实例模块**
+- [x] **Step 5: 提交实例模块**
 
 ```bash
 git add backend
@@ -966,7 +966,7 @@ git commit -m "feat: add deployment instances"
 - Create: `backend/src/main/java/com/timeops/platform/ssh/SshExecutionResult.java`
 - Create: `backend/src/test/java/com/timeops/platform/task/OperationTaskServiceTest.java`
 
-- [ ] **Step 1: 先写任务生命周期测试**
+- [x] **Step 1: 先写任务生命周期测试**
 
 ```java
 package com.timeops.platform.task;
@@ -993,7 +993,7 @@ class OperationTaskServiceTest {
 }
 ```
 
-- [ ] **Step 2: 运行测试，确认任务引擎还不存在**
+- [x] **Step 2: 运行测试，确认任务引擎还不存在**
 
 Run: `cd backend && mvn test -Dtest=OperationTaskServiceTest`
 
@@ -1001,7 +1001,7 @@ Expected:
 
 - 编译失败，提示任务或 SSH 抽象不存在
 
-- [ ] **Step 3: 实现任务表与 SSH 抽象**
+- [x] **Step 3: 实现任务表与 SSH 抽象**
 
 `backend/src/main/resources/db/migration/V5__init_operation_task.sql`
 
@@ -1056,7 +1056,7 @@ public enum TaskStatus {
 }
 ```
 
-- [ ] **Step 4: 跑测试并补异步执行器外壳**
+- [x] **Step 4: 跑测试并补异步执行器外壳**
 
 Run: `cd backend && mvn test -Dtest=OperationTaskServiceTest`
 
@@ -1066,7 +1066,7 @@ Expected:
 
 接着新增 `TaskWorker`，先用 `@Scheduled(fixedDelay = 2000)` 拉取 `PENDING` 任务执行，不要一开始上消息队列。
 
-- [ ] **Step 5: 提交任务与 SSH 抽象**
+- [x] **Step 5: 提交任务与 SSH 抽象**
 
 ```bash
 git add backend
@@ -1083,7 +1083,7 @@ git commit -m "feat: add task engine and ssh abstraction"
 - Create: `backend/src/main/java/com/timeops/platform/task/TemplateActionRunner.java`
 - Create: `backend/src/test/java/com/timeops/platform/task/TaskCommandControllerTest.java`
 
-- [ ] **Step 1: 先写高风险命令与审计测试**
+- [x] **Step 1: 先写高风险命令与审计测试**
 
 ```java
 package com.timeops.platform.task;
@@ -1131,7 +1131,7 @@ class TaskCommandControllerTest {
 }
 ```
 
-- [ ] **Step 2: 运行测试，确认执行 API 尚未实现**
+- [x] **Step 2: 运行测试，确认执行 API 尚未实现**
 
 Run: `cd backend && mvn test -Dtest=TaskCommandControllerTest`
 
@@ -1139,7 +1139,7 @@ Expected:
 
 - `404` 或 Bean 缺失
 
-- [ ] **Step 3: 实现审计表、控制器与动作执行器**
+- [x] **Step 3: 实现审计表、控制器与动作执行器**
 
 `backend/src/main/resources/db/migration/V6__init_audit_log.sql`
 
@@ -1191,7 +1191,7 @@ public interface TemplateActionRunner {
 public void record(UUID actorUserId, String actionType, String targetType, String targetId, UUID taskId, Map<String, Object> detail)
 ```
 
-- [ ] **Step 4: 跑测试并加上输出脱敏规则**
+- [x] **Step 4: 跑测试并加上输出脱敏规则**
 
 Run: `cd backend && mvn test -Dtest=TaskCommandControllerTest`
 
@@ -1205,7 +1205,7 @@ Expected:
 "DB_PASSWORD=secret" -> "DB_PASSWORD=******"
 ```
 
-- [ ] **Step 5: 提交运维执行 API 与审计**
+- [x] **Step 5: 提交运维执行 API 与审计**
 
 ```bash
 git add backend
@@ -1225,7 +1225,7 @@ git commit -m "feat: add task execution endpoints and audit logging"
 - Create: `frontend/src/features/auth/authStore.ts`
 - Create: `frontend/src/test/router.test.tsx`
 
-- [ ] **Step 1: 先写受保护路由测试**
+- [x] **Step 1: 先写受保护路由测试**
 
 ```tsx
 import { describe, expect, it } from "vitest";
@@ -1246,7 +1246,7 @@ describe("protected route", () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试，确认前端工程尚不存在**
+- [x] **Step 2: 运行测试，确认前端工程尚不存在**
 
 Run: `cd frontend && npm test`
 
@@ -1254,7 +1254,7 @@ Expected:
 
 - `ENOENT` 或 `package.json` 不存在
 
-- [ ] **Step 3: 初始化 Vite React + Ant Design 后台外壳**
+- [x] **Step 3: 初始化 Vite React + Ant Design 后台外壳**
 
 `frontend/package.json`
 
@@ -1318,7 +1318,7 @@ export function LoginPage() {
 }
 ```
 
-- [ ] **Step 4: 再跑测试，确认匿名访问被拦截**
+- [x] **Step 4: 再跑测试，确认匿名访问被拦截**
 
 Run: `cd frontend && npm install && npm test`
 
@@ -1326,7 +1326,7 @@ Expected:
 
 - `1 passed`
 
-- [ ] **Step 5: 提交前端基础骨架**
+- [x] **Step 5: 提交前端基础骨架**
 
 ```bash
 git add frontend
@@ -1344,7 +1344,7 @@ git commit -m "feat: scaffold frontend shell and auth routes"
 - Create: `frontend/src/features/releases/ReleaseListPage.tsx`
 - Create: `frontend/src/test/customer-list.test.tsx`
 
-- [ ] **Step 1: 先写客户列表渲染测试**
+- [x] **Step 1: 先写客户列表渲染测试**
 
 ```tsx
 import { describe, expect, it } from "vitest";
@@ -1361,7 +1361,7 @@ describe("CustomerListPage", () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试，确认业务页面尚未实现**
+- [x] **Step 2: 运行测试，确认业务页面尚未实现**
 
 Run: `cd frontend && npm test -- customer-list.test.tsx`
 
@@ -1369,7 +1369,7 @@ Expected:
 
 - 模块不存在或组件不存在
 
-- [ ] **Step 3: 实现后台核心管理页**
+- [x] **Step 3: 实现后台核心管理页**
 
 客户列表示例：
 
@@ -1423,7 +1423,7 @@ const columns = [
 ["版本号", "来源类型", "模板", "创建人", "创建时间"]
 ```
 
-- [ ] **Step 4: 运行测试，并补页面级冒烟测试**
+- [x] **Step 4: 运行测试，并补页面级冒烟测试**
 
 Run: `cd frontend && npm test`
 
@@ -1433,7 +1433,7 @@ Expected:
 
 再补 1 个 API mock 冒烟测试，验证页面能渲染来自接口的 1 条示例数据。
 
-- [ ] **Step 5: 提交核心管理页**
+- [x] **Step 5: 提交核心管理页**
 
 ```bash
 git add frontend
@@ -1448,7 +1448,7 @@ git commit -m "feat: add core management pages"
 - Create: `frontend/src/features/users/UserRolePage.tsx`
 - Create: `frontend/src/test/task-center.test.tsx`
 
-- [ ] **Step 1: 先写任务中心与审计页测试**
+- [x] **Step 1: 先写任务中心与审计页测试**
 
 ```tsx
 import { describe, expect, it } from "vitest";
@@ -1465,7 +1465,7 @@ describe("TaskCenterPage", () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试，确认任务与审计页面尚未实现**
+- [x] **Step 2: 运行测试，确认任务与审计页面尚未实现**
 
 Run: `cd frontend && npm test -- task-center.test.tsx`
 
@@ -1473,7 +1473,7 @@ Expected:
 
 - 组件不存在
 
-- [ ] **Step 3: 实现任务中心、审计日志、用户角色页**
+- [x] **Step 3: 实现任务中心、审计日志、用户角色页**
 
 任务中心最小筛选项：
 
@@ -1505,7 +1505,7 @@ Expected:
 render: (value: string) => <Tag color={value === "ADHOC_COMMAND" ? "volcano" : "blue"}>{value}</Tag>
 ```
 
-- [ ] **Step 4: 运行测试并增加交互冒烟**
+- [x] **Step 4: 运行测试并增加交互冒烟**
 
 Run: `cd frontend && npm test`
 
@@ -1515,7 +1515,7 @@ Expected:
 
 再补 1 个 Drawer 打开测试，验证点击“查看日志”后出现日志文本区域。
 
-- [ ] **Step 5: 提交运维与审计前端页面**
+- [x] **Step 5: 提交运维与审计前端页面**
 
 ```bash
 git add frontend
@@ -1531,7 +1531,7 @@ git commit -m "feat: add task audit and user admin pages"
 - Create: `backend/.env.example`
 - Create: `README.md`
 
-- [ ] **Step 1: 先写一个后端集成流程测试**
+- [x] **Step 1: 先写一个后端集成流程测试**
 
 ```java
 package com.timeops.platform.integration;
@@ -1566,7 +1566,7 @@ class DeploymentFlowIntegrationTest {
 }
 ```
 
-- [ ] **Step 2: 运行后端与前端全量测试**
+- [x] **Step 2: 运行后端与前端全量测试**
 
 Run:
 
@@ -1580,7 +1580,7 @@ Expected:
 - 后端测试全部通过
 - 前端测试全部通过
 
-- [ ] **Step 3: 编写本地启动与容器编排文件**
+- [x] **Step 3: 编写本地启动与容器编排文件**
 
 `docker-compose.yml`
 
@@ -1626,7 +1626,7 @@ services:
 - 测试命令
 - MVP 已实现范围
 
-- [ ] **Step 4: 执行一次完整构建验收**
+- [x] **Step 4: 执行一次完整构建验收**
 
 Run:
 
@@ -1642,7 +1642,7 @@ Expected:
 - 前端构建成功
 - `docker compose ps` 显示 `postgres`、`backend`、`frontend` 为 `Up`
 
-- [ ] **Step 5: 提交集成与交付文件**
+- [x] **Step 5: 提交集成与交付文件**
 
 ```bash
 git add docker-compose.yml backend frontend README.md
