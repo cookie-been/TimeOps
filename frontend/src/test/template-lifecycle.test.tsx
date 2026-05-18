@@ -229,7 +229,7 @@ describe("TemplateListPage lifecycle", () => {
     fireEvent.click(screen.getByRole("button", { name: /编辑/ }));
     expect(await screen.findByText("编辑产品模板")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("步骤定义(JSON)"), {
+    fireEvent.change(screen.getByLabelText("部署步骤定义(JSON)"), {
       target: {
         value: JSON.stringify(
           {
@@ -261,6 +261,122 @@ describe("TemplateListPage lifecycle", () => {
               script: "./ops/verify.sh",
               useMergedConfigEnv: true,
               useInstanceEnvironment: true
+            }
+          }
+        ]
+      })
+    );
+  });
+
+  it("supports enabling additional delivery actions", async () => {
+    fetchTemplatesMock.mockResolvedValueOnce([
+      {
+        id: "tpl-delivery",
+        name: "交付模板",
+        productCode: "delivery-platform",
+        supportedReleaseSources: ["GIT"],
+        defaultWorkDir: "/srv/delivery",
+        defaultConfig: { APP_PORT: "8080" },
+        description: "多动作模板",
+        actions: [
+          {
+            id: "act-deploy",
+            actionType: "DEPLOY",
+            mode: "SCRIPT",
+            scriptBody: "./ops/deploy.sh"
+          }
+        ],
+        recordStatus: "ACTIVE"
+      }
+    ]);
+    updateTemplateMock.mockResolvedValueOnce({
+      id: "tpl-delivery",
+      name: "交付模板",
+      productCode: "delivery-platform",
+      supportedReleaseSources: ["GIT"],
+      defaultWorkDir: "/srv/delivery",
+      defaultConfig: { APP_PORT: "8080" },
+      description: "多动作模板",
+      actions: [
+        {
+          id: "act-deploy",
+          actionType: "DEPLOY",
+          mode: "SCRIPT",
+          scriptBody: "./ops/deploy.sh"
+        },
+        {
+          id: "act-backup",
+          actionType: "BACKUP",
+          mode: "SCRIPT",
+          scriptBody: "./ops/backup.sh"
+        },
+        {
+          id: "act-verify",
+          actionType: "VERIFY",
+          mode: "STEP",
+          stepDefinition: {
+            script: "./ops/verify.sh",
+            useMergedConfigEnv: true
+          }
+        }
+      ],
+      recordStatus: "ACTIVE"
+    });
+
+    render(<TemplateListPage />);
+
+    expect(await screen.findByText("交付模板")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /编辑/ }));
+    expect(await screen.findByText("编辑产品模板")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "启用备份动作" }));
+    fireEvent.change(screen.getByLabelText("备份脚本"), { target: { value: "./ops/backup.sh" } });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "启用验证动作" }));
+    fireEvent.click(screen.getByLabelText("验证动作模式"));
+    const verifyModeOptions = screen.getAllByRole("radio", { name: "步骤" });
+    fireEvent.click(verifyModeOptions[verifyModeOptions.length - 1].closest("label")!);
+    fireEvent.change(screen.getByLabelText("验证步骤定义(JSON)"), {
+      target: {
+        value: JSON.stringify(
+          {
+            script: "./ops/verify.sh",
+            useMergedConfigEnv: true
+          },
+          null,
+          2
+        )
+      }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /保\s*存/ }));
+
+    await waitFor(() =>
+      expect(updateTemplateMock).toHaveBeenCalledWith("tpl-delivery", {
+        name: "交付模板",
+        productCode: "delivery-platform",
+        supportedReleaseSources: ["GIT"],
+        defaultWorkDir: "/srv/delivery",
+        defaultConfig: { APP_PORT: "8080" },
+        description: "多动作模板",
+        actions: [
+          {
+            actionType: "DEPLOY",
+            mode: "SCRIPT",
+            scriptBody: "./ops/deploy.sh"
+          },
+          {
+            actionType: "BACKUP",
+            mode: "SCRIPT",
+            scriptBody: "./ops/backup.sh"
+          },
+          {
+            actionType: "VERIFY",
+            mode: "STEP",
+            stepDefinition: {
+              script: "./ops/verify.sh",
+              useMergedConfigEnv: true
             }
           }
         ]

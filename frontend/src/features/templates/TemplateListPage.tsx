@@ -1,5 +1,5 @@
 import { EditOutlined, InboxOutlined, PlusOutlined, RollbackOutlined, SearchOutlined } from "@ant-design/icons";
-import { Button, Drawer, Form, Input, Segmented, Select, Space, Table, message } from "antd";
+import { Button, Checkbox, Drawer, Form, Input, Segmented, Select, Space, Table, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import {
   archiveTemplate,
@@ -27,51 +27,131 @@ interface TemplateFormValues {
   defaultWorkDir?: string;
   defaultConfigText?: string;
   description?: string;
-  deployActionMode: string;
-  deployScript?: string;
-  deployStepDefinitionText?: string;
+  actions?: Record<string, TemplateActionFormValue>;
 }
 
 type DrawerMode = "create" | "edit";
 
-function buildTemplateActions(
-  item: TemplateItem | null,
-  deployActionMode: string,
-  deployScript: string | undefined,
-  deployStepDefinition: Record<string, unknown> | undefined
-): TemplateActionPayload[] {
-  if (!item || item.actions.length === 0) {
-    return [
-      deployActionMode === "STEP"
-        ? {
-            actionType: "DEPLOY",
-            mode: "STEP",
-            stepDefinition: deployStepDefinition
-          }
-        : {
-            actionType: "DEPLOY",
-            mode: "SCRIPT",
-            scriptBody: deployScript
-          }
-    ];
+interface TemplateActionFormValue {
+  enabled?: boolean;
+  mode?: string;
+  scriptBody?: string;
+  stepDefinitionText?: string;
+}
+
+const editableActionMetas = [
+  { type: "DEPLOY", label: "部署" },
+  { type: "UPDATE", label: "更新" },
+  { type: "BACKUP", label: "备份" },
+  { type: "ROLLBACK", label: "回滚" },
+  { type: "VERIFY", label: "验证" },
+  { type: "RESTART", label: "重启" }
+] as const;
+
+const editableActionTypeSet = new Set<string>(editableActionMetas.map((meta) => meta.type));
+
+function buildActionFormValues(item?: TemplateItem | null): Record<string, TemplateActionFormValue> {
+  const values = Object.fromEntries(
+    editableActionMetas.map((meta) => [
+      meta.type,
+      {
+        enabled: meta.type === "DEPLOY",
+        mode: "SCRIPT",
+        scriptBody: "",
+        stepDefinitionText: ""
+      }
+    ])
+  ) as Record<string, TemplateActionFormValue>;
+
+  if (!item) {
+    return values;
   }
 
-  return item.actions.map((action) => ({
-    actionType: action.actionType,
-    mode: action.actionType === "DEPLOY" ? deployActionMode : action.mode,
-    scriptBody:
-      action.actionType === "DEPLOY"
-        ? deployActionMode === "SCRIPT"
-          ? deployScript
-          : undefined
-        : action.scriptBody,
-    stepDefinition:
-      action.actionType === "DEPLOY"
-        ? deployActionMode === "STEP"
-          ? deployStepDefinition
-          : undefined
-        : action.stepDefinition
-  }));
+  for (const action of item.actions) {
+    if (!editableActionTypeSet.has(action.actionType)) {
+      continue;
+    }
+    values[action.actionType] = {
+      enabled: true,
+      mode: action.mode,
+      scriptBody: action.scriptBody ?? "",
+      stepDefinitionText: formatJsonObjectInput(action.stepDefinition)
+    };
+  }
+
+  return values;
+}
+
+function buildActionPayload(
+  actionType: string,
+  value: TemplateActionFormValue | undefined
+): TemplateActionPayload | null {
+  if (!value?.enabled) {
+    return null;
+  }
+
+  const mode = value.mode === "STEP" ? "STEP" : "SCRIPT";
+  return mode === "STEP"
+    ? {
+        actionType,
+        mode,
+        stepDefinition: parseJsonObjectInput(value.stepDefinitionText)
+      }
+    : {
+        actionType,
+        mode,
+        scriptBody: value.scriptBody
+      };
+}
+
+function buildTemplateActions(
+  item: TemplateItem | null,
+  actionValues: Record<string, TemplateActionFormValue> | undefined
+): TemplateActionPayload[] {
+  const builtEditableActions = new Map<string, TemplateActionPayload>();
+  for (const meta of editableActionMetas) {
+    const payload = buildActionPayload(meta.type, actionValues?.[meta.type]);
+    if (payload) {
+      builtEditableActions.set(meta.type, payload);
+    }
+  }
+
+  if (!item || item.actions.length === 0) {
+    return editableActionMetas.flatMap((meta) => {
+      const payload = builtEditableActions.get(meta.type);
+      return payload ? [payload] : [];
+    });
+  }
+
+  const nextActions: TemplateActionPayload[] = [];
+  const consumedActionTypes = new Set<string>();
+
+  for (const action of item.actions) {
+    if (!editableActionTypeSet.has(action.actionType)) {
+      nextActions.push({
+        actionType: action.actionType,
+        mode: action.mode,
+        scriptBody: action.scriptBody,
+        stepDefinition: action.stepDefinition
+      });
+      continue;
+    }
+
+    consumedActionTypes.add(action.actionType);
+    const payload = builtEditableActions.get(action.actionType);
+    if (payload) {
+      nextActions.push(payload);
+    }
+  }
+
+  for (const meta of editableActionMetas) {
+    const payload = builtEditableActions.get(meta.type);
+    if (payload && !consumedActionTypes.has(meta.type)) {
+      nextActions.push(payload);
+    }
+  }
+
+  return nextActions;
 }
 
 export function TemplateListPage() {
@@ -109,13 +189,13 @@ export function TemplateListPage() {
     setDrawerMode("create");
     setEditingItem(null);
     form.resetFields();
-    form.setFieldValue("deployActionMode", "SCRIPT");
+    form.setFieldsValue({
+      actions: buildActionFormValues()
+    });
     setDrawerOpen(true);
   };
 
   const openEditDrawer = (item: TemplateItem) => {
-    const deployAction = item.actions.find((action) => action.actionType === "DEPLOY");
-
     setDrawerMode("edit");
     setEditingItem(item);
     form.setFieldsValue({
@@ -125,9 +205,7 @@ export function TemplateListPage() {
       defaultWorkDir: item.defaultWorkDir,
       defaultConfigText: formatJsonObjectInput(item.defaultConfig),
       description: item.description,
-      deployActionMode: deployAction?.mode ?? "SCRIPT",
-      deployScript: deployAction?.scriptBody ?? "",
-      deployStepDefinitionText: formatJsonObjectInput(deployAction?.stepDefinition)
+      actions: buildActionFormValues(item)
     });
     setDrawerOpen(true);
   };
@@ -140,7 +218,6 @@ export function TemplateListPage() {
   };
 
   const handleSubmit = async (values: TemplateFormValues) => {
-    const deployStepDefinition = parseJsonObjectInput(values.deployStepDefinitionText);
     const payload: TemplateUpdatePayload = {
       name: values.name,
       productCode: values.productCode,
@@ -148,12 +225,7 @@ export function TemplateListPage() {
       defaultWorkDir: values.defaultWorkDir,
       defaultConfig: parseJsonObjectInput(values.defaultConfigText),
       description: values.description,
-      actions: buildTemplateActions(
-        editingItem,
-        values.deployActionMode,
-        values.deployScript,
-        deployStepDefinition
-      )
+      actions: buildTemplateActions(editingItem, values.actions)
     };
 
     setSubmitting(true);
@@ -200,7 +272,7 @@ export function TemplateListPage() {
     <>
       <PageHeader
         title="产品模板"
-        subtitle="定义标准部署动作、默认目录与版本来源约束。"
+        subtitle="定义标准交付动作、默认目录与版本来源约束。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreateDrawer}>
             新增模板
@@ -208,7 +280,7 @@ export function TemplateListPage() {
         }
         stats={[
           { label: "当前列表", value: String(filteredItems.length) },
-          { label: "脚本动作", value: String(actionCount) },
+          { label: "模板动作", value: String(actionCount) },
           { label: "已归档", value: String(archivedCount) }
         ]}
       />
@@ -324,38 +396,57 @@ export function TemplateListPage() {
           <Form.Item label="默认配置(JSON)" name="defaultConfigText">
             <Input.TextArea rows={4} placeholder='{"APP_PORT":"8080"}' />
           </Form.Item>
-          <Form.Item label="部署动作模式" name="deployActionMode" initialValue="SCRIPT">
-            <Segmented
-              options={[
-                { label: "脚本", value: "SCRIPT" },
-                { label: "步骤", value: "STEP" }
-              ]}
-            />
-          </Form.Item>
-          <Form.Item shouldUpdate={(prev, next) => prev.deployActionMode !== next.deployActionMode} noStyle>
-            {({ getFieldValue }) =>
-              getFieldValue("deployActionMode") === "STEP" ? (
-                <Form.Item
-                  label="步骤定义(JSON)"
-                  name="deployStepDefinitionText"
-                  rules={[{ required: true, message: "请输入步骤定义 JSON" }]}
-                >
-                  <Input.TextArea
-                    rows={6}
-                    placeholder='{"script":"./ops/deploy.sh","useMergedConfigEnv":true}'
-                  />
-                </Form.Item>
-              ) : (
-                <Form.Item
-                  label="部署脚本"
-                  name="deployScript"
-                  rules={[{ required: true, message: "请输入部署脚本" }]}
-                >
-                  <Input.TextArea rows={5} />
-                </Form.Item>
-              )
-            }
-          </Form.Item>
+          {editableActionMetas.map((meta) => (
+            <div key={meta.type}>
+              <Form.Item name={["actions", meta.type, "enabled"]} valuePropName="checked">
+                <Checkbox>{`启用${meta.label}动作`}</Checkbox>
+              </Form.Item>
+              <Form.Item shouldUpdate noStyle>
+                {({ getFieldValue }) => {
+                  const enabled = getFieldValue(["actions", meta.type, "enabled"]);
+                  const mode = getFieldValue(["actions", meta.type, "mode"]) ?? "SCRIPT";
+
+                  if (!enabled) {
+                    return null;
+                  }
+
+                  return (
+                    <>
+                      <Form.Item label={`${meta.label}动作模式`} name={["actions", meta.type, "mode"]}>
+                        <Segmented
+                          aria-label={`${meta.label}动作模式`}
+                          options={[
+                            { label: "脚本", value: "SCRIPT" },
+                            { label: "步骤", value: "STEP" }
+                          ]}
+                        />
+                      </Form.Item>
+                      {mode === "STEP" ? (
+                        <Form.Item
+                          label={`${meta.label}步骤定义(JSON)`}
+                          name={["actions", meta.type, "stepDefinitionText"]}
+                          rules={[{ required: true, message: `请输入${meta.label}步骤定义 JSON` }]}
+                        >
+                          <Input.TextArea
+                            rows={6}
+                            placeholder={`{"script":"./ops/${meta.type.toLowerCase()}.sh","useMergedConfigEnv":true}`}
+                          />
+                        </Form.Item>
+                      ) : (
+                        <Form.Item
+                          label={`${meta.label}脚本`}
+                          name={["actions", meta.type, "scriptBody"]}
+                          rules={[{ required: true, message: `请输入${meta.label}脚本` }]}
+                        >
+                          <Input.TextArea rows={5} />
+                        </Form.Item>
+                      )}
+                    </>
+                  );
+                }}
+              </Form.Item>
+            </div>
+          ))}
           <Form.Item label="说明" name="description">
             <Input.TextArea rows={3} />
           </Form.Item>

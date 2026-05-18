@@ -57,7 +57,7 @@
   - `TaskExecutionContext`, `TaskExecutionContextFactory`, and `TemplateStepExecutor` are present
   - `OperationTaskService.execute()` dispatches `STEP` actions through the structured runner
   - `STEP` mode currently supports a minimal JSON shape with `script` plus runtime-env toggles
-  - frontend template editing supports switching deploy actions between `SCRIPT` and `STEP`
+  - frontend template editing supports multiple delivery actions with per-action `SCRIPT` / `STEP` switching
 - P2 is now mostly implemented:
   - backend and frontend support `BACKUP`, `ROLLBACK`, and `VERIFY`
   - template action types include `BACKUP`, `ROLLBACK`, and `VERIFY`
@@ -110,6 +110,7 @@
 - Template editing now preserves `STEP` action definitions end to end:
   - backend controller coverage added
   - frontend template lifecycle test added
+  - frontend template page now supports enabling and editing `DEPLOY`, `UPDATE`, `BACKUP`, `ROLLBACK`, `VERIFY`, and `RESTART`
 - Delivery task surface widened end to end:
   - backend task types and endpoints now include `BACKUP`, `ROLLBACK`, and `VERIFY`
   - frontend task center can create backup, rollback, and verify tasks
