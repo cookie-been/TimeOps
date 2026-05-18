@@ -3,15 +3,16 @@
 - Date: 2026-05-18
 - Workspace: `/workspace/.worktrees/timeops-mvp-impl/TimeOps`
 - Branch: `timeops-mvp-impl`
-- HEAD: `f5e1115 feat: add customer and server management`
+- Recent commits:
+  - `10b8bdc feat: expand template action editor`
+  - `44e0a88 feat: build TimeOps delivery operations platform`
 
 ## Snapshot
 
-- Current worktree is far ahead of `HEAD`.
-- `git diff --name-only` shows 20 tracked modified files.
-- `git ls-files --others --exclude-standard` shows 147 untracked files.
-- `git status --short` collapses that into 65 visible entries because many untracked paths are directories.
-- Main risk right now is not missing implementation, but large amounts of uncommitted work.
+- Working tree is currently clean.
+- The large platform baseline is now committed instead of living only in untracked files.
+- The follow-up template editor expansion is also committed.
+- Main continuity risk is no longer uncommitted work; it is making sure future work starts from the newer delivery-platform baseline instead of the stale upgrade plan.
 
 ## What Is Already Present In The Worktree
 
@@ -44,6 +45,7 @@
 - `docs/superpowers/plans/2026-05-18-real-ssh-execution.md`: fully checked.
 - `docs/superpowers/plans/2026-05-18-real-ssh-compose-entry.md`: fully checked.
 - `docs/superpowers/plans/2026-05-18-project-delivery-platform-upgrade.md`: checklist is still unchecked and is stale relative to current code. Treat it as a backlog/spec, not as ground truth for implemented status.
+- `docs/superpowers/plans/2026-05-18-delivery-platform-remaining-work.md`: effectively complete for the currently planned scope.
 
 ## Delivery Upgrade Reality Check
 
@@ -131,13 +133,31 @@
     - 16 test classes, all green
   - `cd frontend && npm test`
     - passed
-    - 12 test files, 24 tests
+    - 12 test files, 25 tests
+  - `cd frontend && npm run build`
+    - passed
+
+## Latest Frontend Follow-up On 2026-05-18
+
+- `TemplateListPage` no longer edits only the deploy action.
+- The template drawer now supports enabling and editing:
+  - `DEPLOY`
+  - `UPDATE`
+  - `BACKUP`
+  - `ROLLBACK`
+  - `VERIFY`
+  - `RESTART`
+- Each supported action can independently choose `SCRIPT` or `STEP`.
+- Existing unknown action types are preserved when editing.
+- Focused verification after this follow-up:
+  - `cd frontend && npm test -- src/test/template-lifecycle.test.tsx`
+    - passed
   - `cd frontend && npm run build`
     - passed
 
 ## Recommended Immediate Next Steps
 
-1. Continue with Task 4 documentation polish or any deeper delivery workflow refinement from `docs/superpowers/plans/2026-05-18-delivery-platform-remaining-work.md`.
-2. Treat `docs/superpowers/plans/2026-05-18-project-delivery-platform-upgrade.md` as historical context only; it is intentionally marked stale at the top.
-3. Stage and commit the current implementation in logical slices soon; most of the actual product currently lives only in untracked files.
+1. Treat `docs/superpowers/plans/2026-05-18-project-delivery-platform-upgrade.md` as historical context only; it is intentionally marked stale at the top.
+2. Start the next feature from the committed baseline at `44e0a88` plus the template editor follow-up at `10b8bdc`.
+3. If new delivery-platform work is needed, write a fresh scoped plan instead of reusing the old unchecked upgrade checklist.
 4. Keep using this handoff file as the continuity anchor if context is compressed again.
