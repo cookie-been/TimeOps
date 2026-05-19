@@ -115,6 +115,7 @@ export function UserRolePage() {
           className="timeops-table"
           rowKey="id"
           dataSource={items}
+          scroll={{ x: "max-content" }}
           pagination={{ pageSize: 8 }}
           columns={[
             { title: "用户名", dataIndex: "username", key: "username" },
@@ -154,7 +155,7 @@ export function UserRolePage() {
       </DataSection>
       <Drawer
         title="新增运维账号"
-        width={520}
+        width="min(520px, 100vw)"
         open={createDrawerOpen}
         destroyOnClose
         onClose={() => setCreateDrawerOpen(false)}
@@ -203,7 +204,7 @@ export function UserRolePage() {
       </Drawer>
       <Drawer
         title={roleDrawerUser ? `角色授权 ${roleDrawerUser.username}` : "角色授权"}
-        width={520}
+        width="min(520px, 100vw)"
         open={Boolean(roleDrawerUser)}
         destroyOnClose
         onClose={() => {

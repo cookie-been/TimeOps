@@ -10,8 +10,8 @@ describe("CustomerListPage", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByText("客户名称")).toBeInTheDocument();
-    expect(screen.getByText("联系人")).toBeInTheDocument();
-    expect(screen.getByText("联系邮箱")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "客户名称" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "联系人" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "联系邮箱" })).toBeInTheDocument();
   });
 });

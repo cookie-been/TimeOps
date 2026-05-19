@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom";
+import { beforeEach } from "vitest";
+import { useAuthStore } from "../features/auth/authStore";
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -46,4 +48,10 @@ Object.defineProperty(window, "ResizeObserver", {
 Object.defineProperty(window, "scrollTo", {
   writable: true,
   value: () => undefined
+});
+
+beforeEach(() => {
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  useAuthStore.setState({ accessToken: null, username: null });
 });

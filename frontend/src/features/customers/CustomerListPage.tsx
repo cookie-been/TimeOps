@@ -172,6 +172,7 @@ export function CustomerListPage() {
           loading={loading}
           rowClassName={(record) => (record.recordStatus === "ARCHIVED" ? "timeops-row-archived" : "")}
           dataSource={filteredItems}
+          scroll={{ x: "max-content" }}
           pagination={{ pageSize: 8 }}
           columns={[
             { title: "客户名称", dataIndex: "name", key: "name" },
@@ -220,7 +221,7 @@ export function CustomerListPage() {
       </DataSection>
       <Drawer
         title={drawerMode === "edit" ? "编辑客户档案" : "新增客户档案"}
-        width={480}
+        width="min(480px, 100vw)"
         open={drawerOpen}
         onClose={closeDrawer}
         destroyOnClose

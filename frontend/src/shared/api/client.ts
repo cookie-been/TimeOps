@@ -49,6 +49,7 @@ const apiClient = axios.create({
 });
 
 const isTestMode = import.meta.env.MODE === "test";
+const accessTokenKey = "timeops-access-token";
 
 function buildLocalId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -58,7 +59,7 @@ function buildLocalId(prefix: string): string {
 }
 
 apiClient.interceptors.request.use((config) => {
-  const token = window.localStorage.getItem("timeops-access-token");
+  const token = window.localStorage.getItem(accessTokenKey) ?? window.sessionStorage.getItem(accessTokenKey);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

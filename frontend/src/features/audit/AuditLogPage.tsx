@@ -97,6 +97,7 @@ export function AuditLogPage() {
           className="timeops-table"
           rowKey="id"
           dataSource={filteredItems}
+          scroll={{ x: "max-content" }}
           pagination={{ pageSize: 8 }}
           columns={[
             { title: "时间", dataIndex: "createdAt", key: "createdAt", render: renderNullable },
@@ -125,7 +126,7 @@ export function AuditLogPage() {
       <Drawer
         title={detailItem ? `审计详情 ${detailItem.id}` : "审计详情"}
         open={Boolean(detailItem)}
-        width={560}
+        width="min(560px, 100vw)"
         onClose={() => setDetailItem(null)}
       >
         <Typography.Paragraph type="secondary">基础信息</Typography.Paragraph>

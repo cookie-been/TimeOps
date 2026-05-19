@@ -1,5 +1,5 @@
 import { EditOutlined, InboxOutlined, PlusOutlined, RollbackOutlined, SearchOutlined } from "@ant-design/icons";
-import { Button, Drawer, Form, Input, Segmented, Select, Space, Table, message } from "antd";
+import { Button, Drawer, Form, Input, Segmented, Select, Space, Table, Typography, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import {
   archiveRelease,
@@ -9,10 +9,12 @@ import {
   restoreRelease,
   updateRelease
 } from "../../shared/api/client";
+import { ConfigPreview } from "../../shared/components/ConfigPreview";
 import { DataSection } from "../../shared/components/DataSection";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { mergeRecordInFilter, recordStatusFilterOptions } from "../../shared/record-status";
 import { renderNullable, renderRecordStatus, renderReleaseSource } from "../../shared/presentation";
+import { TemplateActionTimeline } from "../../shared/components/TemplateActionTimeline";
 import type { RecordStatusFilter, ReleaseItem, ReleaseUpdatePayload, TemplateItem } from "../../shared/types";
 
 interface ReleaseFormValues {
@@ -39,6 +41,7 @@ export function ReleaseListPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<ReleaseFormValues>();
   const sourceType = Form.useWatch("sourceType", form);
+  const selectedTemplateId = Form.useWatch("templateId", form);
 
   useEffect(() => {
     void fetchTemplates().then((data) => setTemplates(data));
@@ -52,6 +55,10 @@ export function ReleaseListPage() {
   }, [recordStatusFilter]);
 
   const templateMap = useMemo(() => new Map(templates.map((item) => [item.id, item.name])), [templates]);
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === selectedTemplateId),
+    [selectedTemplateId, templates]
+  );
 
   const filteredItems = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase();
@@ -187,6 +194,7 @@ export function ReleaseListPage() {
           loading={loading}
           rowClassName={(record) => (record.recordStatus === "ARCHIVED" ? "timeops-row-archived" : "")}
           dataSource={filteredItems}
+          scroll={{ x: "max-content" }}
           pagination={{ pageSize: 8 }}
           columns={[
             { title: "版本号", dataIndex: "versionLabel", key: "versionLabel" },
@@ -201,6 +209,20 @@ export function ReleaseListPage() {
               dataIndex: "templateId",
               key: "templateId",
               render: (templateId: string) => renderNullable(templateMap.get(templateId))
+            },
+            {
+              title: "来源地址",
+              key: "sourceLocation",
+              render: (_, record) =>
+                renderNullable(record.sourceType === "PACKAGE" ? record.packageUri : record.repositoryUrl)
+            },
+            {
+              title: "模板脚本",
+              key: "templateActions",
+              render: (_, record) => {
+                const template = templates.find((item) => item.id === record.templateId);
+                return <TemplateActionTimeline actions={template?.actions ?? []} emptyText="模板未配置动作" />;
+              }
             },
             { title: "创建人", dataIndex: "createdBy", key: "createdBy", render: renderNullable },
             { title: "创建时间", dataIndex: "createdAt", key: "createdAt", render: renderNullable },
@@ -234,7 +256,7 @@ export function ReleaseListPage() {
       </DataSection>
       <Drawer
         title={drawerMode === "edit" ? "编辑发布版本" : "登记发布版本"}
-        width={520}
+        width="min(520px, 100vw)"
         open={drawerOpen}
         onClose={closeDrawer}
         destroyOnClose
@@ -255,6 +277,23 @@ export function ReleaseListPage() {
               options={templates.map((template) => ({ value: template.id, label: template.name }))}
             />
           </Form.Item>
+          {selectedTemplate ? (
+            <div className="timeops-inline-panel">
+              <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                <div>
+                  <Typography.Text strong>沿用模板脚本</Typography.Text>
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                    版本负责定义代码来源，部署/更新/验证脚本沿用产品模板里的动作配置。
+                  </Typography.Paragraph>
+                </div>
+                <TemplateActionTimeline actions={selectedTemplate.actions} />
+                <div>
+                  <Typography.Text strong>模板默认配置</Typography.Text>
+                  <ConfigPreview value={selectedTemplate.defaultConfig} emptyText="模板未配置默认环境变量" />
+                </div>
+              </Space>
+            </div>
+          ) : null}
           <Form.Item label="版本号" name="versionLabel" rules={[{ required: true, message: "请输入版本号" }]}>
             <Input placeholder="例如 v1.0.0" />
           </Form.Item>

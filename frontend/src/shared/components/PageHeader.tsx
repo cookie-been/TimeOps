@@ -1,4 +1,4 @@
-import { Space, Typography } from "antd";
+import { Typography } from "antd";
 import type { ReactNode } from "react";
 
 interface PageHeaderProps {
@@ -20,8 +20,8 @@ export function PageHeader({ title, subtitle, extra, stats }: PageHeaderProps) {
           {subtitle}
         </Typography.Paragraph>
       </div>
-      <Space className="timeops-page-header-side" direction="vertical" size={12} align="end">
-        {extra}
+      <div className="timeops-page-header-side">
+        {extra ? <div className="timeops-page-header-actions">{extra}</div> : null}
         {stats && stats.length > 0 ? (
           <div className="timeops-page-header-meta">
             {stats.map((stat) => (
@@ -36,7 +36,7 @@ export function PageHeader({ title, subtitle, extra, stats }: PageHeaderProps) {
             ))}
           </div>
         ) : null}
-      </Space>
+      </div>
     </div>
   );
 }

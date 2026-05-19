@@ -115,7 +115,7 @@ describe("InstanceListPage lifecycle", () => {
     expect(await screen.findByText("编辑部署实例")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("环境标识"), { target: { value: "prod-blue" } });
-    fireEvent.change(screen.getByLabelText("配置覆盖(JSON)"), { target: { value: '{"APP_PORT":"8081"}' } });
+    fireEvent.change(screen.getByDisplayValue("8080"), { target: { value: "8081" } });
     fireEvent.change(screen.getByLabelText("备注"), { target: { value: "蓝绿发布实例" } });
     fireEvent.click(screen.getByRole("button", { name: /保\s*存/ }));
 

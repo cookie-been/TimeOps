@@ -270,6 +270,7 @@ export function TaskCenterPage() {
           className="timeops-table"
           rowKey="id"
           dataSource={filteredItems}
+          scroll={{ x: "max-content" }}
           pagination={{ pageSize: 8 }}
           columns={[
             { title: "任务编号", dataIndex: "taskNumber", key: "taskNumber", render: renderCode },
@@ -325,7 +326,7 @@ export function TaskCenterPage() {
       <Drawer
         title="创建运维任务"
         open={createDrawerOpen}
-        width={560}
+        width="min(560px, 100vw)"
         destroyOnClose
         onClose={closeCreateDrawer}
         extra={
@@ -338,23 +339,25 @@ export function TaskCenterPage() {
         }
       >
         <Space direction="vertical" size={20} style={{ width: "100%" }}>
-          <Segmented<TaskMode>
-            block
-            value={taskMode}
-            onChange={(value) => {
-              setTaskMode(value);
-              form.resetFields();
-            }}
-            options={[
-              { label: "部署", value: "DEPLOY" },
-              { label: "更新", value: "UPDATE" },
-              { label: "备份", value: "BACKUP" },
-              { label: "回滚", value: "ROLLBACK" },
-              { label: "验证", value: "VERIFY" },
-              { label: "重启", value: "RESTART" },
-              { label: "临时命令", value: "ADHOC_COMMAND" }
-            ]}
-          />
+          <div className="timeops-segmented-wrap">
+            <Segmented<TaskMode>
+              block
+              value={taskMode}
+              onChange={(value) => {
+                setTaskMode(value);
+                form.resetFields();
+              }}
+              options={[
+                { label: "部署", value: "DEPLOY" },
+                { label: "更新", value: "UPDATE" },
+                { label: "备份", value: "BACKUP" },
+                { label: "回滚", value: "ROLLBACK" },
+                { label: "验证", value: "VERIFY" },
+                { label: "重启", value: "RESTART" },
+                { label: "临时命令", value: "ADHOC_COMMAND" }
+              ]}
+            />
+          </div>
           <Form<TaskCreateFormValues> form={form} layout="vertical" onFinish={handleCreate}>
             {taskMode === "DEPLOY" ? (
               <>
@@ -537,7 +540,7 @@ export function TaskCenterPage() {
       <Drawer
         title={drawerTask ? `任务日志 ${drawerTask.taskNumber}` : "任务日志"}
         open={Boolean(drawerTask)}
-        width={560}
+        width="min(560px, 100vw)"
         onClose={() => setDrawerTask(null)}
       >
         <Typography.Paragraph type="secondary">执行状态</Typography.Paragraph>

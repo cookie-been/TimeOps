@@ -1,19 +1,36 @@
-import { EditOutlined, InboxOutlined, PlusOutlined, RollbackOutlined, SearchOutlined } from "@ant-design/icons";
-import { Button, Drawer, Form, Input, InputNumber, Segmented, Select, Space, Table, message } from "antd";
+import {
+  CodeOutlined,
+  EditOutlined,
+  InboxOutlined,
+  PlayCircleOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  RollbackOutlined,
+  SearchOutlined
+} from "@ant-design/icons";
+import { Button, Drawer, Form, Input, InputNumber, Segmented, Select, Space, Table, Typography, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import {
   archiveServer,
+  createAdhocTask,
   createServer,
   fetchCustomers,
   fetchServers,
+  fetchTasks,
   restoreServer,
   updateServer
 } from "../../shared/api/client";
 import { DataSection } from "../../shared/components/DataSection";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { mergeRecordInFilter, recordStatusFilterOptions } from "../../shared/record-status";
-import { renderCode, renderConnectivityStatus, renderNullable, renderRecordStatus } from "../../shared/presentation";
-import type { CustomerItem, RecordStatusFilter, ServerItem, ServerUpdatePayload } from "../../shared/types";
+import {
+  renderCode,
+  renderConnectivityStatus,
+  renderNullable,
+  renderRecordStatus,
+  renderTaskStatus
+} from "../../shared/presentation";
+import type { CustomerItem, RecordStatusFilter, ServerItem, ServerUpdatePayload, TaskItem } from "../../shared/types";
 
 interface ServerFormValues {
   customerId: string;
@@ -28,6 +45,37 @@ interface ServerFormValues {
 
 type DrawerMode = "create" | "edit";
 
+interface TerminalFormValues {
+  command: string;
+}
+
+const terminalPresets = [
+  {
+    label: "环境概览",
+    command: "whoami && hostname && pwd && uptime"
+  },
+  {
+    label: "Docker",
+    command: "docker ps -a"
+  },
+  {
+    label: "磁盘",
+    command: "df -h"
+  },
+  {
+    label: "网络",
+    command: "ss -lntp"
+  },
+  {
+    label: "内存",
+    command: "free -h"
+  }
+] as const;
+
+function isTerminalTaskRunning(task?: TaskItem | null): boolean {
+  return task?.status === "PENDING" || task?.status === "RUNNING";
+}
+
 export function ServerListPage() {
   const [items, setItems] = useState<ServerItem[]>([]);
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
@@ -38,7 +86,12 @@ export function ServerListPage() {
   const [recordStatusFilter, setRecordStatusFilter] = useState<RecordStatusFilter>("ACTIVE");
   const [keyword, setKeyword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalServer, setTerminalServer] = useState<ServerItem | null>(null);
+  const [terminalTask, setTerminalTask] = useState<TaskItem | null>(null);
+  const [terminalSubmitting, setTerminalSubmitting] = useState(false);
   const [form] = Form.useForm<ServerFormValues>();
+  const [terminalForm] = Form.useForm<TerminalFormValues>();
 
   useEffect(() => {
     void fetchCustomers().then((data) => setCustomers(data));
@@ -160,6 +213,76 @@ export function ServerListPage() {
   const archivedCount = items.filter((item) => item.recordStatus === "ARCHIVED").length;
   const connectedCount = items.filter((item) => item.connectivityStatus === "SUCCESS").length;
 
+  useEffect(() => {
+    if (!terminalOpen || !terminalTask || !isTerminalTaskRunning(terminalTask)) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void fetchTasks()
+        .then((taskItems) => {
+          const nextTask = taskItems.find((item) => item.id === terminalTask.id);
+          if (nextTask) {
+            setTerminalTask(nextTask);
+          }
+        })
+        .catch(() => undefined);
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [terminalOpen, terminalTask]);
+
+  const openTerminalDrawer = (item: ServerItem) => {
+    setTerminalServer(item);
+    setTerminalTask(null);
+    terminalForm.setFieldsValue({ command: terminalPresets[0].command });
+    setTerminalOpen(true);
+  };
+
+  const closeTerminalDrawer = () => {
+    setTerminalOpen(false);
+    setTerminalServer(null);
+    setTerminalTask(null);
+    terminalForm.resetFields();
+  };
+
+  const runTerminalCommand = async () => {
+    if (!terminalServer) {
+      return;
+    }
+
+    const values = await terminalForm.validateFields();
+    setTerminalSubmitting(true);
+    try {
+      const createdTask = await createAdhocTask({
+        serverId: terminalServer.id,
+        command: values.command,
+        riskConfirmed: true
+      });
+      setTerminalTask(createdTask);
+      message.success("SSH 命令已发送");
+    } catch {
+      message.error("SSH 命令发送失败");
+    } finally {
+      setTerminalSubmitting(false);
+    }
+  };
+
+  const refreshTerminalTask = async () => {
+    if (!terminalTask) {
+      return;
+    }
+    try {
+      const taskItems = await fetchTasks();
+      const nextTask = taskItems.find((item) => item.id === terminalTask.id);
+      if (nextTask) {
+        setTerminalTask(nextTask);
+      }
+    } catch {
+      message.error("终端输出刷新失败");
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -201,6 +324,7 @@ export function ServerListPage() {
           loading={loading}
           rowClassName={(record) => (record.recordStatus === "ARCHIVED" ? "timeops-row-archived" : "")}
           dataSource={filteredItems}
+          scroll={{ x: "max-content" }}
           pagination={{ pageSize: 8 }}
           columns={[
             {
@@ -241,6 +365,9 @@ export function ServerListPage() {
                   </Button>
                 ) : (
                   <Space size={4}>
+                    <Button type="link" size="small" icon={<CodeOutlined />} onClick={() => openTerminalDrawer(record)}>
+                      远程终端
+                    </Button>
                     <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEditDrawer(record)}>
                       编辑
                     </Button>
@@ -255,7 +382,7 @@ export function ServerListPage() {
       </DataSection>
       <Drawer
         title={drawerMode === "edit" ? "编辑服务器" : "接入服务器"}
-        width={520}
+        width="min(520px, 100vw)"
         open={drawerOpen}
         onClose={closeDrawer}
         destroyOnClose
@@ -302,6 +429,88 @@ export function ServerListPage() {
             <Input.TextArea rows={4} />
           </Form.Item>
         </Form>
+      </Drawer>
+      <Drawer
+        title={terminalServer ? `远程终端 · ${terminalServer.host}` : "远程终端"}
+        width="min(820px, 100vw)"
+        open={terminalOpen}
+        onClose={closeTerminalDrawer}
+        destroyOnClose
+        extra={
+          <Space>
+            <Button onClick={closeTerminalDrawer}>关闭</Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => void refreshTerminalTask()}
+              disabled={!terminalTask}
+            >
+              刷新输出
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlayCircleOutlined />}
+              loading={terminalSubmitting}
+              onClick={() => void runTerminalCommand()}
+            >
+              执行命令
+            </Button>
+          </Space>
+        }
+      >
+        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+          {terminalServer ? (
+            <div className="timeops-inline-panel">
+              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                <Typography.Text strong>连接信息</Typography.Text>
+                <Space wrap>
+                  <span className="timeops-code-pill">{terminalServer.host}</span>
+                  <span className="timeops-code-pill">{`ssh ${terminalServer.sshUsername}@${terminalServer.host} -p ${terminalServer.sshPort}`}</span>
+                  {renderConnectivityStatus(terminalServer.connectivityStatus)}
+                </Space>
+              </Space>
+            </div>
+          ) : null}
+          <div className="timeops-inline-panel">
+            <Typography.Text strong>常用命令</Typography.Text>
+            <Space wrap style={{ marginTop: 12 }}>
+              {terminalPresets.map((preset) => (
+                <Button key={preset.label} onClick={() => terminalForm.setFieldsValue({ command: preset.command })}>
+                  {preset.label}
+                </Button>
+              ))}
+            </Space>
+          </div>
+          <Form<TerminalFormValues> form={terminalForm} layout="vertical">
+            <Form.Item
+              label="命令内容"
+              name="command"
+              rules={[{ required: true, whitespace: true, message: "请输入命令内容" }]}
+            >
+              <Input.TextArea rows={6} placeholder="例如 docker ps -a" />
+            </Form.Item>
+          </Form>
+          {terminalTask ? (
+            <div className="timeops-inline-panel">
+              <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                <Space wrap align="center">
+                  <Typography.Text strong>{terminalTask.taskNumber}</Typography.Text>
+                  {renderTaskStatus(terminalTask.status)}
+                </Space>
+                <Typography.Text type="secondary">
+                  命令会通过服务器管理中保存的 SSH 凭据直接下发到目标主机。
+                </Typography.Text>
+                <div>
+                  <Typography.Text strong>标准输出</Typography.Text>
+                  <pre className="timeops-log-block">{terminalTask.outputLog || "等待输出..."}</pre>
+                </div>
+                <div>
+                  <Typography.Text strong>错误输出</Typography.Text>
+                  <pre className="timeops-log-block">{terminalTask.errorLog || "暂无错误输出"}</pre>
+                </div>
+              </Space>
+            </div>
+          ) : null}
+        </Space>
       </Drawer>
     </>
   );

@@ -11,9 +11,16 @@ import {
   restoreInstance,
   updateInstance
 } from "../../shared/api/client";
+import {
+  configEntriesToObject,
+  configObjectToEntries,
+  mergeConfigObjects,
+  type ConfigEntry
+} from "../../shared/config-entries";
+import { ConfigPreview } from "../../shared/components/ConfigPreview";
 import { DataSection } from "../../shared/components/DataSection";
+import { KeyValueEditor } from "../../shared/components/KeyValueEditor";
 import { PageHeader } from "../../shared/components/PageHeader";
-import { formatJsonObjectInput, parseJsonObjectInput } from "../../shared/json";
 import { mergeRecordInFilter, recordStatusFilterOptions } from "../../shared/record-status";
 import { renderInstanceStatus, renderNullable, renderRecordStatus } from "../../shared/presentation";
 import type {
@@ -31,7 +38,7 @@ interface InstanceFormValues {
   primaryServerId: string;
   instanceName: string;
   environmentLabel: string;
-  configOverrideText?: string;
+  configOverrideEntries?: ConfigEntry[];
   notes?: string;
 }
 
@@ -99,7 +106,7 @@ export function InstanceListPage() {
       primaryServerId: item.primaryServerId,
       instanceName: item.instanceName,
       environmentLabel: item.environmentLabel,
-      configOverrideText: formatJsonObjectInput(item.configOverride),
+      configOverrideEntries: configObjectToEntries(item.configOverride),
       notes: item.notes
     });
     setDrawerOpen(true);
@@ -119,7 +126,7 @@ export function InstanceListPage() {
       primaryServerId: values.primaryServerId,
       instanceName: values.instanceName,
       environmentLabel: values.environmentLabel,
-      configOverride: parseJsonObjectInput(values.configOverrideText),
+      configOverride: configEntriesToObject(values.configOverrideEntries),
       notes: values.notes
     };
 
@@ -134,7 +141,7 @@ export function InstanceListPage() {
       message.success(drawerMode === "edit" ? "实例已更新" : "实例已创建");
       closeDrawer();
     } catch {
-      message.error(drawerMode === "edit" ? "实例更新失败，请检查 JSON 配置" : "实例创建失败，请检查 JSON 配置");
+      message.error(drawerMode === "edit" ? "实例更新失败，请检查配置项" : "实例创建失败，请检查配置项");
     } finally {
       setSubmitting(false);
     }
@@ -204,6 +211,7 @@ export function InstanceListPage() {
           loading={loading}
           rowClassName={(record) => (record.recordStatus === "ARCHIVED" ? "timeops-row-archived" : "")}
           dataSource={filteredItems}
+          scroll={{ x: "max-content" }}
           pagination={{ pageSize: 8 }}
           columns={[
             { title: "实例名称", dataIndex: "instanceName", key: "instanceName" },
@@ -227,6 +235,24 @@ export function InstanceListPage() {
               render: (serverId: string) => renderNullable(serverMap.get(serverId))
             },
             { title: "当前版本", dataIndex: "currentReleaseId", key: "currentReleaseId", render: renderNullable },
+            {
+              title: "实例配置",
+              dataIndex: "configOverride",
+              key: "configOverride",
+              render: (value: InstanceItem["configOverride"]) => <ConfigPreview value={value} emptyText="未覆盖模板配置" />
+            },
+            {
+              title: "最终生效配置",
+              key: "mergedConfig",
+              render: (_, record) => (
+                <ConfigPreview
+                  value={record.mergedConfig ?? mergeConfigObjects(
+                    templates.find((template) => template.id === record.templateId)?.defaultConfig,
+                    record.configOverride
+                  )}
+                />
+              )
+            },
             {
               title: "运行状态",
               dataIndex: "status",
@@ -263,7 +289,7 @@ export function InstanceListPage() {
       </DataSection>
       <Drawer
         title={drawerMode === "edit" ? "编辑部署实例" : "创建部署实例"}
-        width={560}
+        width="min(560px, 100vw)"
         open={drawerOpen}
         onClose={closeDrawer}
         destroyOnClose
@@ -304,8 +330,28 @@ export function InstanceListPage() {
           <Form.Item label="环境标识" name="environmentLabel" rules={[{ required: true, message: "请输入环境标识" }]}>
             <Input placeholder="例如 prod / pre / test" />
           </Form.Item>
-          <Form.Item label="配置覆盖(JSON)" name="configOverrideText">
-            <Input.TextArea rows={4} placeholder='{"DOMAIN":"app.example.com"}' />
+          <Form.Item label="实例环境覆盖">
+            <KeyValueEditor
+              name="configOverrideEntries"
+              addLabel="新增覆盖项"
+              keyPlaceholder="例如 WEB_PORT"
+              valuePlaceholder="例如 18080"
+              emptyHint="不填则直接继承模板默认配置"
+            />
+          </Form.Item>
+          <Form.Item shouldUpdate noStyle>
+            {({ getFieldValue }) => {
+              const selectedTemplateId = getFieldValue("templateId") as string | undefined;
+              const template = templates.find((item) => item.id === selectedTemplateId);
+              const override = configEntriesToObject(getFieldValue("configOverrideEntries") as ConfigEntry[] | undefined);
+              const merged = mergeConfigObjects(template?.defaultConfig, override);
+
+              return (
+                <Form.Item label="最终生效配置预览">
+                  <ConfigPreview value={merged} emptyText="选择模板后可查看最终生效配置" />
+                </Form.Item>
+              );
+            }}
           </Form.Item>
           <Form.Item label="备注" name="notes">
             <Input.TextArea rows={3} />

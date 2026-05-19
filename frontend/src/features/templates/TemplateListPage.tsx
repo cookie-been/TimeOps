@@ -16,11 +16,21 @@ import {
   restoreTemplate,
   updateTemplate
 } from "../../shared/api/client";
+import { configEntriesToObject, configObjectToEntries, countConfigEntries, type ConfigEntry } from "../../shared/config-entries";
 import { DataSection } from "../../shared/components/DataSection";
+import { ConfigPreview } from "../../shared/components/ConfigPreview";
+import { KeyValueEditor } from "../../shared/components/KeyValueEditor";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { formatJsonObjectInput, parseJsonObjectInput } from "../../shared/json";
 import { mergeRecordInFilter, recordStatusFilterOptions } from "../../shared/record-status";
 import { renderCode, renderNullable, renderRecordStatus, renderReleaseSource } from "../../shared/presentation";
+import {
+  editableActionMetas,
+  getTemplateActionLabel,
+  isEditableActionType,
+  type EditableActionType
+} from "../../shared/template-actions";
+import { TemplateActionTimeline } from "../../shared/components/TemplateActionTimeline";
 import type {
   RecordStatusFilter,
   TemplateActionPayload,
@@ -33,7 +43,7 @@ interface TemplateFormValues {
   productCode: string;
   supportedReleaseSources: string[];
   defaultWorkDir?: string;
-  defaultConfigText?: string;
+  defaultConfigEntries?: ConfigEntry[];
   description?: string;
   actions?: Record<string, TemplateActionFormValue>;
 }
@@ -45,28 +55,6 @@ interface TemplateActionFormValue {
   mode?: string;
   scriptBody?: string;
   stepDefinitionText?: string;
-}
-
-const editableActionMetas = [
-  { type: "DEPLOY", label: "部署" },
-  { type: "UPDATE", label: "更新" },
-  { type: "BACKUP", label: "备份" },
-  { type: "ROLLBACK", label: "回滚" },
-  { type: "VERIFY", label: "验证" },
-  { type: "RESTART", label: "重启" }
-] as const;
-
-type EditableActionType = (typeof editableActionMetas)[number]["type"];
-
-const editableActionTypeSet = new Set<EditableActionType>(editableActionMetas.map((meta) => meta.type));
-const editableActionLabelMap = new Map<string, string>(editableActionMetas.map((meta) => [meta.type, meta.label]));
-
-function getActionLabel(actionType: string): string {
-  return editableActionLabelMap.get(actionType) ?? actionType;
-}
-
-function isEditableActionType(actionType: string): actionType is EditableActionType {
-  return editableActionTypeSet.has(actionType as EditableActionType);
 }
 
 function buildInitialEnabledActionOrder(item?: TemplateItem | null): EditableActionType[] {
@@ -293,7 +281,7 @@ export function TemplateListPage() {
       productCode: item.productCode,
       supportedReleaseSources: item.supportedReleaseSources,
       defaultWorkDir: item.defaultWorkDir,
-      defaultConfigText: formatJsonObjectInput(item.defaultConfig),
+      defaultConfigEntries: configObjectToEntries(item.defaultConfig),
       description: item.description,
       actions: nextActionValues
     });
@@ -316,7 +304,7 @@ export function TemplateListPage() {
       productCode: values.productCode,
       supportedReleaseSources: values.supportedReleaseSources,
       defaultWorkDir: values.defaultWorkDir,
-      defaultConfig: parseJsonObjectInput(values.defaultConfigText),
+      defaultConfig: configEntriesToObject(values.defaultConfigEntries),
       description: values.description,
       actions: buildTemplateActions(editingItem, values.actions, nextEnabledActionOrder)
     };
@@ -333,7 +321,7 @@ export function TemplateListPage() {
       message.success(drawerMode === "edit" ? "模板已更新" : "模板已创建");
       closeDrawer();
     } catch {
-      message.error(drawerMode === "edit" ? "模板更新失败，请检查 JSON 配置" : "模板创建失败，请检查 JSON 配置");
+      message.error(drawerMode === "edit" ? "模板更新失败，请检查动作定义或配置项" : "模板创建失败，请检查动作定义或配置项");
     } finally {
       setSubmitting(false);
     }
@@ -361,6 +349,7 @@ export function TemplateListPage() {
 
   const archivedCount = items.filter((item) => item.recordStatus === "ARCHIVED").length;
   const actionCount = items.reduce((total, item) => total + item.actions.length, 0);
+  const configCount = items.reduce((total, item) => total + countConfigEntries(item.defaultConfig), 0);
   const enabledActionTypes = enabledActionOrder.filter((type) => watchedActions?.[type]?.enabled);
 
   return (
@@ -376,6 +365,7 @@ export function TemplateListPage() {
         stats={[
           { label: "当前列表", value: String(filteredItems.length) },
           { label: "模板动作", value: String(actionCount) },
+          { label: "默认配置项", value: String(configCount) },
           { label: "已归档", value: String(archivedCount) }
         ]}
       />
@@ -404,6 +394,7 @@ export function TemplateListPage() {
           loading={loading}
           rowClassName={(record) => (record.recordStatus === "ARCHIVED" ? "timeops-row-archived" : "")}
           dataSource={filteredItems}
+          scroll={{ x: "max-content" }}
           pagination={{ pageSize: 8 }}
           columns={[
             { title: "模板名称", dataIndex: "name", key: "name" },
@@ -418,18 +409,16 @@ export function TemplateListPage() {
             },
             { title: "默认目录", dataIndex: "defaultWorkDir", key: "defaultWorkDir", render: renderNullable },
             {
-              title: "动作顺序",
+              title: "模板动作",
               key: "actions",
               render: (_, record) =>
-                record.actions.length === 0 ? (
-                  renderNullable(undefined)
-                ) : (
-                  <Space size={4} wrap>
-                    {record.actions.map((action, index) => (
-                      <span key={action.id ?? `${action.actionType}-${index}`}>{`${index + 1}.${getActionLabel(action.actionType)}`}</span>
-                    ))}
-                  </Space>
-                )
+                <TemplateActionTimeline actions={record.actions} />
+            },
+            {
+              title: "默认配置",
+              dataIndex: "defaultConfig",
+              key: "defaultConfig",
+              render: (value: TemplateItem["defaultConfig"]) => <ConfigPreview value={value} />
             },
             {
               title: "记录状态",
@@ -461,7 +450,7 @@ export function TemplateListPage() {
       </DataSection>
       <Drawer
         title={drawerMode === "edit" ? "编辑产品模板" : "新增产品模板"}
-        width={560}
+        width="min(560px, 100vw)"
         open={drawerOpen}
         onClose={closeDrawer}
         destroyOnClose
@@ -497,8 +486,14 @@ export function TemplateListPage() {
           <Form.Item label="默认目录" name="defaultWorkDir">
             <Input />
           </Form.Item>
-          <Form.Item label="默认配置(JSON)" name="defaultConfigText">
-            <Input.TextArea rows={4} placeholder='{"APP_PORT":"8080"}' />
+          <Form.Item label="默认环境配置">
+            <KeyValueEditor
+              name="defaultConfigEntries"
+              addLabel="新增默认配置项"
+              keyPlaceholder="例如 APP_PORT"
+              valuePlaceholder="例如 8080"
+              emptyHint="未配置默认环境变量"
+            />
           </Form.Item>
           <Form.Item label="启用动作">
             <Space direction="vertical" size={4} style={{ width: "100%" }}>
@@ -591,6 +586,22 @@ export function TemplateListPage() {
                   );
                 })}
               </Space>
+            </Form.Item>
+          ) : null}
+          {enabledActionTypes.length > 0 ? (
+            <Form.Item label="模板动作预览">
+              <TemplateActionTimeline
+                actions={buildTemplateActions(editingItem, watchedActions, enabledActionOrder).map((action, index) => ({
+                  id: `${action.actionType}-${index}`,
+                  actionType: action.actionType,
+                  mode: action.mode,
+                  scriptBody: action.scriptBody,
+                  stepDefinition: action.stepDefinition,
+                  executionOrder: action.executionOrder
+                }))}
+                showDetails
+                emptyText="暂无动作"
+              />
             </Form.Item>
           ) : null}
           <Form.Item label="说明" name="description">

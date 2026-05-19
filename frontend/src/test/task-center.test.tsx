@@ -12,7 +12,7 @@ describe("TaskCenterPage", () => {
 
     expect(screen.getByText("任务中心")).toBeInTheDocument();
     expect(screen.getByText("任务类型")).toBeInTheDocument();
-    expect(screen.getByText("退出码")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "退出码" })).toBeInTheDocument();
     expect(screen.getByText("查看日志")).toBeInTheDocument();
   });
 
