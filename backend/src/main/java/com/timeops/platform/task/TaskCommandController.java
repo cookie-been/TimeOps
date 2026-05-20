@@ -1,5 +1,6 @@
 package com.timeops.platform.task;
 
+import com.timeops.platform.audit.AuditService;
 import com.timeops.platform.common.api.ApiResponse;
 import com.timeops.platform.task.dto.AdhocCommandRequest;
 import com.timeops.platform.task.dto.BackupTaskRequest;
@@ -16,28 +17,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-import com.timeops.platform.audit.AuditService;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api/tasks")
 public class TaskCommandController {
 
     private final OperationTaskService operationTaskService;
+    private final TaskEventStreamService taskEventStreamService;
     private final AuditService auditService;
 
     public TaskCommandController(
             OperationTaskService operationTaskService,
+            TaskEventStreamService taskEventStreamService,
             AuditService auditService) {
         this.operationTaskService = operationTaskService;
+        this.taskEventStreamService = taskEventStreamService;
         this.auditService = auditService;
     }
 
@@ -174,6 +180,16 @@ public class TaskCommandController {
         return ApiResponse.ok(operationTaskService.listTasks().stream()
                 .map(this::toTaskResponse)
                 .toList());
+    }
+
+    @GetMapping("/{taskId}")
+    public ApiResponse<OperationTaskResponse> getTask(@PathVariable UUID taskId) {
+        return ApiResponse.ok(toTaskResponse(operationTaskService.findTask(taskId)));
+    }
+
+    @GetMapping(path = "/{taskId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamTask(@PathVariable UUID taskId) {
+        return taskEventStreamService.streamTask(() -> toTaskResponse(operationTaskService.findTask(taskId)));
     }
 
     private TaskSubmissionResponse toSubmissionResponse(OperationTaskEntity operationTaskEntity) {

@@ -9,6 +9,7 @@ TimeOps 是一个面向软件厂商交付团队的企业级运维平台，用于
 - 账号登录、JWT 鉴权、RBAC 基础
 - 客户管理
 - 服务器管理与 SSH 凭据 AES-GCM 加密存储
+- 服务器页远程终端，基于一次性 SSH 命令任务执行并实时同步输出
 - 产品模板与标准动作编排
 - 产品模板动作支持 `SCRIPT / STEP` 两种模式
 - 模板页支持分别启用和编辑 `DEPLOY / UPDATE / BACKUP / ROLLBACK / VERIFY / RESTART` 动作
@@ -108,6 +109,8 @@ TimeOps 是一个面向软件厂商交付团队的企业级运维平台，用于
 - `POST /api/tasks/verify`
 - `POST /api/tasks/restart`
 - `GET /api/tasks`
+- `GET /api/tasks/{taskId}`
+- `GET /api/tasks/{taskId}/events`
 
 ### 交付动作与 `STEP` 执行
 
@@ -141,6 +144,13 @@ TimeOps 是一个面向软件厂商交付团队的企业级运维平台，用于
 - `VERIFY`：按模板验证动作执行发布后核验
 - `RESTART`：按模板重启动作执行服务重启
 - `ADHOC_COMMAND`：直接对服务器执行一次性高风险命令
+
+### 服务器远程终端
+
+- 服务器页提供远程终端抽屉，可对选中的服务器发起一次性 SSH 命令。
+- 命令执行复用 `ADHOC_COMMAND` 任务链路，仍然保留任务状态、输出、退出码和审计记录。
+- 前端优先通过 `GET /api/tasks/{taskId}/events` 订阅任务输出；事件流不可用时回退到 `GET /api/tasks/{taskId}` 轮询。
+- 终端抽屉支持常用命令、命令历史、清屏、本地 `help/history/clear` 命令和手动刷新。
 
 ### 审计
 

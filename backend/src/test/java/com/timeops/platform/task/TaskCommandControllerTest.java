@@ -1,18 +1,22 @@
 package com.timeops.platform.task;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
 import com.timeops.platform.audit.AuditLogRepository;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -23,6 +27,9 @@ class TaskCommandControllerTest {
 
     @Autowired
     private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private OperationTaskService operationTaskService;
 
     @Test
     void shouldRequireRiskConfirmationForAdhocCommand() throws Exception {
@@ -81,6 +88,153 @@ class TaskCommandControllerTest {
                                 {"serverId":"%s","command":"docker ps","riskConfirmed":false}
                                 """.formatted(serverId)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldReturnTaskDetailsById() throws Exception {
+        String loginResponse = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"admin","password":"Admin@123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String accessToken = JsonPath.read(loginResponse, "$.data.accessToken");
+
+        String customerId = JsonPath.read(mockMvc.perform(post("/api/customers")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"查询任务客户",
+                                  "contactName":"赵六",
+                                  "contactPhone":"13600000001",
+                                  "contactEmail":"zhaoliu1@example.com",
+                                  "notes":"任务详情测试客户"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(), "$.data.id");
+
+        String serverId = JsonPath.read(mockMvc.perform(post("/api/servers")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "customerId":"%s",
+                                  "host":"10.31.31.31",
+                                  "sshPort":22,
+                                  "sshUsername":"ops",
+                                  "sshPassword":"Ops@12345",
+                                  "osLabel":"Ubuntu 22.04",
+                                  "tags":["ops"],
+                                  "notes":"任务详情主机"
+                                }
+                                """.formatted(customerId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(), "$.data.id");
+
+        String taskId = JsonPath.read(mockMvc.perform(post("/api/tasks/adhoc")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"serverId":"%s","command":"docker ps","riskConfirmed":true}
+                                """.formatted(serverId)))
+                .andExpect(status().isAccepted())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(), "$.data.id");
+
+        mockMvc.perform(get("/api/tasks/{taskId}", taskId)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(taskId))
+                .andExpect(jsonPath("$.data.taskType").value("ADHOC_COMMAND"))
+                .andExpect(jsonPath("$.data.commandInput").value("docker ps"));
+    }
+
+    @Test
+    void shouldStreamTaskEventsById() throws Exception {
+        String loginResponse = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"admin","password":"Admin@123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String accessToken = JsonPath.read(loginResponse, "$.data.accessToken");
+
+        String customerId = JsonPath.read(mockMvc.perform(post("/api/customers")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"流式任务客户",
+                                  "contactName":"钱八",
+                                  "contactPhone":"13600000002",
+                                  "contactEmail":"qianba@example.com",
+                                  "notes":"任务流测试客户"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(), "$.data.id");
+
+        String serverId = JsonPath.read(mockMvc.perform(post("/api/servers")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "customerId":"%s",
+                                  "host":"10.32.32.32",
+                                  "sshPort":22,
+                                  "sshUsername":"ops",
+                                  "sshPassword":"Ops@12345",
+                                  "osLabel":"Ubuntu 22.04",
+                                  "tags":["ops"],
+                                  "notes":"任务流主机"
+                                }
+                                """.formatted(customerId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(), "$.data.id");
+
+        String taskId = JsonPath.read(mockMvc.perform(post("/api/tasks/adhoc")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"serverId":"%s","command":"docker ps","riskConfirmed":true}
+                                """.formatted(serverId)))
+                .andExpect(status().isAccepted())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(), "$.data.id");
+
+        operationTaskService.execute(UUID.fromString(taskId));
+
+        MvcResult mvcResult = mockMvc.perform(get("/api/tasks/{taskId}/events", taskId)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(request().asyncStarted())
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String responseBody = waitForResponseBody(mvcResult, "event:task");
+        assertThat(mvcResult.getResponse().getContentType()).contains(MediaType.TEXT_EVENT_STREAM_VALUE);
+        assertThat(responseBody)
+                .contains("event:task")
+                .contains(taskId)
+                .contains("SUCCESS")
+                .contains("docker ps");
     }
 
     @Test
@@ -492,5 +646,17 @@ class TaskCommandControllerTest {
                 .andExpect(jsonPath("$.data.status").value("PENDING"));
 
         assertThat(auditLogRepository.count()).isGreaterThan(0);
+    }
+
+    private String waitForResponseBody(MvcResult mvcResult, String expectedFragment) throws Exception {
+        String responseBody = "";
+        for (int attempt = 0; attempt < 20; attempt++) {
+            responseBody = mvcResult.getResponse().getContentAsString();
+            if (responseBody.contains(expectedFragment)) {
+                return responseBody;
+            }
+            Thread.sleep(100L);
+        }
+        return responseBody;
     }
 }

@@ -133,6 +133,12 @@ public class OperationTaskService {
         return operationTaskRepository.findAllByOrderByCreatedAtDesc();
     }
 
+    @Transactional(readOnly = true)
+    public OperationTaskEntity findTask(UUID taskId) {
+        return operationTaskRepository.findById(taskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task does not exist"));
+    }
+
     private OperationTaskEntity enqueueByTemplateAction(
             UUID instanceId,
             UUID releaseId,

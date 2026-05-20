@@ -58,8 +58,26 @@ function buildLocalId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function readAccessToken(): string | null {
+  return window.localStorage.getItem(accessTokenKey) ?? window.sessionStorage.getItem(accessTokenKey);
+}
+
+function isRunningTaskStatus(status?: string): boolean {
+  return status === "PENDING" || status === "RUNNING";
+}
+
+function buildApiUrl(path: string): string {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "/";
+  const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const base = /^https?:\/\//.test(normalizedBaseUrl)
+    ? new URL(normalizedBaseUrl)
+    : new URL(normalizedBaseUrl, window.location.origin);
+  const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
+  return new URL(normalizedPath, base).toString();
+}
+
 apiClient.interceptors.request.use((config) => {
-  const token = window.localStorage.getItem(accessTokenKey) ?? window.sessionStorage.getItem(accessTokenKey);
+  const token = readAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -131,6 +149,127 @@ function buildRestoredRecord<T extends { recordStatus: RecordStatus; archivedAt?
     ...item,
     recordStatus: "ACTIVE",
     archivedAt: undefined
+  };
+}
+
+function buildMockTerminalOutput(command: string): { outputLog: string; errorLog: string; status: string; exitCode?: number } {
+  const normalized = command.trim().toLowerCase();
+
+  if (!normalized) {
+    return {
+      outputLog: "",
+      errorLog: "",
+      status: "SUCCESS",
+      exitCode: 0
+    };
+  }
+
+  if (normalized === "clear") {
+    return {
+      outputLog: "",
+      errorLog: "",
+      status: "SUCCESS",
+      exitCode: 0
+    };
+  }
+
+  if (normalized.includes("whoami")) {
+    return {
+      outputLog: ["deploy", "prod-node-01", "/opt/app", "14:32:18 up 7 days,  3 users,  load average: 0.22, 0.31, 0.28"].join("\n"),
+      errorLog: "",
+      status: "SUCCESS",
+      exitCode: 0
+    };
+  }
+
+  if (normalized.includes("docker ps")) {
+    return {
+      outputLog: [
+        "CONTAINER ID   IMAGE                      STATUS              PORTS                    NAMES",
+        "4f2a91f0a8c1   floralwhisper/web:v1.2.3   Up 18 minutes       0.0.0.0:8080->80/tcp     floral-web",
+        "92ab713d3f42   postgres:16                Up 5 days (healthy) 0.0.0.0:5432->5432/tcp   floral-db"
+      ].join("\n"),
+      errorLog: "",
+      status: "SUCCESS",
+      exitCode: 0
+    };
+  }
+
+  if (normalized.includes("df -h")) {
+    return {
+      outputLog: [
+        "Filesystem      Size  Used Avail Use% Mounted on",
+        "/dev/vda1        80G   31G   46G  41% /",
+        "tmpfs           3.8G     0  3.8G   0% /dev/shm"
+      ].join("\n"),
+      errorLog: "",
+      status: "SUCCESS",
+      exitCode: 0
+    };
+  }
+
+  if (normalized.includes("free -h")) {
+    return {
+      outputLog: [
+        "               total        used        free      shared  buff/cache   available",
+        "Mem:           7.6Gi       2.3Gi       1.8Gi       151Mi       3.5Gi       5.0Gi",
+        "Swap:          2.0Gi          0B       2.0Gi"
+      ].join("\n"),
+      errorLog: "",
+      status: "SUCCESS",
+      exitCode: 0
+    };
+  }
+
+  if (normalized.includes("ss -lntp")) {
+    return {
+      outputLog: [
+        "State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess",
+        "LISTEN 0      4096         0.0.0.0:22        0.0.0.0:*    users:((\"sshd\",pid=721,fd=3))",
+        "LISTEN 0      4096         0.0.0.0:80        0.0.0.0:*    users:((\"nginx\",pid=1420,fd=6))"
+      ].join("\n"),
+      errorLog: "",
+      status: "SUCCESS",
+      exitCode: 0
+    };
+  }
+
+  if (normalized.includes("systemctl restart")) {
+    return {
+      outputLog: "Restarting service...\nService restarted successfully.",
+      errorLog: "",
+      status: "SUCCESS",
+      exitCode: 0
+    };
+  }
+
+  if (normalized.includes("journalctl")) {
+    return {
+      outputLog: [
+        "May 19 14:40:12 prod-node-01 app[2157]: application boot completed",
+        "May 19 14:40:13 prod-node-01 app[2157]: health check passed",
+        "May 19 14:41:03 prod-node-01 app[2157]: background sync started"
+      ].join("\n"),
+      errorLog: "",
+      status: "SUCCESS",
+      exitCode: 0
+    };
+  }
+
+  if (normalized.includes("rm ") || normalized.includes("shutdown") || normalized.includes("reboot")) {
+    return {
+      outputLog: "",
+      errorLog: "Command blocked by policy in demo mode.",
+      status: "FAILED",
+      exitCode: 126
+    };
+  }
+
+  return {
+    outputLog: `Command received: ${command}\nExecution completed in demo environment.`,
+    errorLog: "",
+    status: "SUCCESS",
+    exitCode: 0
   };
 }
 
@@ -207,6 +346,134 @@ export function fetchTasks(): Promise<TaskItem[]> {
     return Promise.resolve(mockTasks);
   }
   return safeFetch(apiClient.get<ApiResponse<TaskItem[]>>("/api/tasks"), mockTasks);
+}
+
+export async function fetchTask(taskId: string): Promise<TaskItem> {
+  const fallbackTask =
+    findLocalMockItem(mockTasks, taskId) ??
+    buildTaskFallback({
+      id: taskId,
+      taskNumber: `TASK-${taskId}`,
+      taskType: "ADHOC_COMMAND",
+      status: "PENDING"
+    });
+
+  if (isTestMode) {
+    return Promise.resolve(fallbackTask);
+  }
+
+  try {
+    const response = await apiClient.get<ApiResponse<TaskItem>>(`/api/tasks/${taskId}`);
+    return response.data.data;
+  } catch {
+    return fallbackTask;
+  }
+}
+
+export function subscribeTask(
+  taskId: string,
+  handlers: {
+    onTask: (task: TaskItem) => void;
+    onError?: () => void;
+  }
+): { close: () => void } {
+  if (isTestMode || typeof window.fetch !== "function" || typeof AbortController === "undefined") {
+    handlers.onError?.();
+    return {
+      close: () => undefined
+    };
+  }
+
+  const abortController = new AbortController();
+  let closed = false;
+  let receivedTerminalEvent = false;
+
+  const processEventChunk = (rawChunk: string) => {
+    const lines = rawChunk
+      .split(/\r?\n/)
+      .map((line) => line.trimEnd())
+      .filter((line) => line.length > 0 && !line.startsWith(":"));
+
+    if (lines.length === 0) {
+      return;
+    }
+
+    const eventName = lines
+      .filter((line) => line.startsWith("event:"))
+      .map((line) => line.slice("event:".length).trim())
+      .slice(-1)[0];
+    const dataPayload = lines
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trim())
+      .join("\n");
+
+    if (!dataPayload || (eventName && eventName !== "task")) {
+      return;
+    }
+
+    const nextTask = buildTaskFallback(JSON.parse(dataPayload) as TaskItem);
+    handlers.onTask(nextTask);
+    if (!isRunningTaskStatus(nextTask.status)) {
+      receivedTerminalEvent = true;
+    }
+  };
+
+  void (async () => {
+    try {
+      const headers = new Headers({ Accept: "text/event-stream" });
+      const token = readAccessToken();
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+
+      const response = await window.fetch(buildApiUrl(`/api/tasks/${taskId}/events`), {
+        headers,
+        signal: abortController.signal,
+        cache: "no-store"
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error("task stream unavailable");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (!closed) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+
+        const chunks = buffer.split(/\r?\n\r?\n/);
+        buffer = chunks.pop() ?? "";
+        chunks.forEach((chunk) => processEventChunk(chunk));
+
+        if (done) {
+          break;
+        }
+      }
+
+      if (buffer.trim()) {
+        processEventChunk(buffer);
+      }
+    } catch {
+      if (!closed && !abortController.signal.aborted) {
+        handlers.onError?.();
+      }
+      return;
+    }
+
+    if (!closed && !receivedTerminalEvent) {
+      handlers.onError?.();
+    }
+  })();
+
+  return {
+    close: () => {
+      closed = true;
+      abortController.abort();
+    }
+  };
 }
 
 export function fetchAuditLogs(): Promise<AuditLogItem[]> {
@@ -1356,13 +1623,21 @@ export async function createAdhocTask(payload: AdhocTaskCreatePayload): Promise<
       commandInput: payload.command
     });
   } catch {
-    return buildTaskFallback({
+    const terminalOutput = buildMockTerminalOutput(payload.command);
+    const fallbackTask = buildTaskFallback({
       id: buildLocalId("task"),
       taskNumber: `TASK-${Date.now()}`,
       taskType: "ADHOC_COMMAND",
       targetServerId: payload.serverId,
-      status: "PENDING",
-      commandInput: payload.command
+      status: terminalOutput.status,
+      commandInput: payload.command,
+      outputLog: terminalOutput.outputLog,
+      errorLog: terminalOutput.errorLog,
+      exitCode: terminalOutput.exitCode,
+      endedAt: new Date().toISOString()
     });
+
+    upsertLocalMockItem(mockTasks, fallbackTask);
+    return fallbackTask;
   }
 }

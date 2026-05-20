@@ -9,14 +9,17 @@ import {
   SearchOutlined
 } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, InputNumber, Segmented, Select, Space, Table, Typography, message } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import type { InputRef } from "antd";
+import type { KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   archiveServer,
   createAdhocTask,
   createServer,
   fetchCustomers,
   fetchServers,
-  fetchTasks,
+  fetchTask,
+  subscribeTask,
   restoreServer,
   updateServer
 } from "../../shared/api/client";
@@ -45,8 +48,16 @@ interface ServerFormValues {
 
 type DrawerMode = "create" | "edit";
 
-interface TerminalFormValues {
+interface TerminalEntry {
+  id: string;
+  taskId: string;
+  taskNumber: string;
   command: string;
+  status: string;
+  stdout: string;
+  stderr: string;
+  exitCode?: number;
+  issuedAt?: string;
 }
 
 const terminalPresets = [
@@ -76,6 +87,39 @@ function isTerminalTaskRunning(task?: TaskItem | null): boolean {
   return task?.status === "PENDING" || task?.status === "RUNNING";
 }
 
+function isRunningStatus(status?: string): boolean {
+  return status === "PENDING" || status === "RUNNING";
+}
+
+function buildTerminalEntry(task: TaskItem): TerminalEntry {
+  return {
+    id: task.id,
+    taskId: task.id,
+    taskNumber: task.taskNumber,
+    command: task.commandInput ?? "",
+    status: task.status,
+    stdout: task.outputLog ?? "",
+    stderr: task.errorLog ?? "",
+    exitCode: task.exitCode,
+    issuedAt: task.startedAt ?? task.createdAt
+  };
+}
+
+function buildLocalTerminalEntry(command: string, stdout: string, stderr = "", exitCode = 0): TerminalEntry {
+  const issuedAt = new Date().toISOString();
+  return {
+    id: `local-${issuedAt}-${Math.random().toString(36).slice(2, 8)}`,
+    taskId: `local-${issuedAt}`,
+    taskNumber: "LOCAL",
+    command,
+    status: exitCode === 0 ? "SUCCESS" : "FAILED",
+    stdout,
+    stderr,
+    exitCode,
+    issuedAt
+  };
+}
+
 export function ServerListPage() {
   const [items, setItems] = useState<ServerItem[]>([]);
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
@@ -89,9 +133,16 @@ export function ServerListPage() {
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalServer, setTerminalServer] = useState<ServerItem | null>(null);
   const [terminalTask, setTerminalTask] = useState<TaskItem | null>(null);
+  const [terminalEntries, setTerminalEntries] = useState<TerminalEntry[]>([]);
+  const [terminalCommand, setTerminalCommand] = useState("");
+  const [terminalHistory, setTerminalHistory] = useState<string[]>([]);
+  const [terminalHistoryIndex, setTerminalHistoryIndex] = useState<number | null>(null);
+  const [terminalHistoryDraft, setTerminalHistoryDraft] = useState("");
   const [terminalSubmitting, setTerminalSubmitting] = useState(false);
+  const [terminalPollFallbackTaskId, setTerminalPollFallbackTaskId] = useState<string | null>(null);
   const [form] = Form.useForm<ServerFormValues>();
-  const [terminalForm] = Form.useForm<TerminalFormValues>();
+  const terminalViewportRef = useRef<HTMLDivElement | null>(null);
+  const terminalInputRef = useRef<InputRef>(null);
 
   useEffect(() => {
     void fetchCustomers().then((data) => setCustomers(data));
@@ -212,30 +263,125 @@ export function ServerListPage() {
 
   const archivedCount = items.filter((item) => item.recordStatus === "ARCHIVED").length;
   const connectedCount = items.filter((item) => item.connectivityStatus === "SUCCESS").length;
+  const terminalPrompt = terminalServer ? `${terminalServer.sshUsername}@${terminalServer.host}:~$` : "shell$";
+  const terminalBusy = isTerminalTaskRunning(terminalTask);
+
+  const recordTerminalHistory = (command: string) => {
+    setTerminalHistory((current) => [...current, command]);
+    setTerminalHistoryIndex(null);
+    setTerminalHistoryDraft("");
+  };
+
+  const syncTerminalTask = useCallback((task: TaskItem) => {
+    setTerminalTask(task);
+    setTerminalEntries((current) => {
+      const nextEntry = buildTerminalEntry(task);
+      const existingIndex = current.findIndex((item) => item.taskId === nextEntry.taskId);
+
+      if (existingIndex === -1) {
+        return [...current, nextEntry];
+      }
+
+      const nextEntries = [...current];
+      nextEntries.splice(existingIndex, 1, nextEntry);
+      return nextEntries;
+    });
+  }, []);
 
   useEffect(() => {
-    if (!terminalOpen || !terminalTask || !isTerminalTaskRunning(terminalTask)) {
+    if (
+      !terminalOpen ||
+      !terminalTask ||
+      !isTerminalTaskRunning(terminalTask) ||
+      terminalPollFallbackTaskId === terminalTask.id
+    ) {
+      return;
+    }
+
+    let active = true;
+    const subscription = subscribeTask(terminalTask.id, {
+      onTask: (nextTask) => {
+        if (active) {
+          syncTerminalTask(nextTask);
+        }
+      },
+      onError: () => {
+        if (active) {
+          setTerminalPollFallbackTaskId(terminalTask.id);
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.close();
+    };
+  }, [terminalOpen, terminalTask, terminalPollFallbackTaskId, syncTerminalTask]);
+
+  useEffect(() => {
+    if (
+      !terminalOpen ||
+      !terminalTask ||
+      !isTerminalTaskRunning(terminalTask) ||
+      terminalPollFallbackTaskId !== terminalTask.id
+    ) {
       return;
     }
 
     const timer = window.setTimeout(() => {
-      void fetchTasks()
-        .then((taskItems) => {
-          const nextTask = taskItems.find((item) => item.id === terminalTask.id);
+      void fetchTask(terminalTask.id)
+        .then((nextTask) => {
           if (nextTask) {
-            setTerminalTask(nextTask);
+            syncTerminalTask(nextTask);
           }
         })
         .catch(() => undefined);
-    }, 2000);
+    }, 1200);
 
     return () => window.clearTimeout(timer);
-  }, [terminalOpen, terminalTask]);
+  }, [terminalOpen, terminalTask, terminalPollFallbackTaskId, syncTerminalTask]);
+
+  useEffect(() => {
+    if (!terminalOpen) {
+      return;
+    }
+
+    const viewport = terminalViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    if (typeof viewport.scrollTo === "function") {
+      viewport.scrollTo({
+        top: viewport.scrollHeight
+      });
+      return;
+    }
+
+    viewport.scrollTop = viewport.scrollHeight;
+  }, [terminalEntries, terminalOpen, terminalBusy]);
+
+  useEffect(() => {
+    if (!terminalOpen || terminalBusy) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      terminalInputRef.current?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [terminalBusy, terminalOpen]);
 
   const openTerminalDrawer = (item: ServerItem) => {
     setTerminalServer(item);
     setTerminalTask(null);
-    terminalForm.setFieldsValue({ command: terminalPresets[0].command });
+    setTerminalEntries([]);
+    setTerminalCommand("");
+    setTerminalHistory([]);
+    setTerminalHistoryIndex(null);
+    setTerminalHistoryDraft("");
+    setTerminalPollFallbackTaskId(null);
     setTerminalOpen(true);
   };
 
@@ -243,23 +389,67 @@ export function ServerListPage() {
     setTerminalOpen(false);
     setTerminalServer(null);
     setTerminalTask(null);
-    terminalForm.resetFields();
+    setTerminalEntries([]);
+    setTerminalCommand("");
+    setTerminalHistory([]);
+    setTerminalHistoryIndex(null);
+    setTerminalHistoryDraft("");
+    setTerminalPollFallbackTaskId(null);
   };
 
   const runTerminalCommand = async () => {
-    if (!terminalServer) {
+    const command = terminalCommand.trim();
+
+    if (!terminalServer || !command || terminalBusy) {
       return;
     }
 
-    const values = await terminalForm.validateFields();
+    if (command === "clear") {
+      recordTerminalHistory(command);
+      clearTerminalScreen();
+      setTerminalCommand("");
+      return;
+    }
+
+    if (command === "history") {
+      const historyLines = [...terminalHistory, command]
+        .map((item, index) => `${index + 1}  ${item}`)
+        .join("\n");
+      setTerminalEntries((current) => [...current, buildLocalTerminalEntry(command, historyLines || "No commands yet.")]);
+      recordTerminalHistory(command);
+      setTerminalCommand("");
+      return;
+    }
+
+    if (command === "help") {
+      setTerminalEntries((current) => [
+        ...current,
+        buildLocalTerminalEntry(
+          command,
+          [
+            "Built-in commands:",
+            "  clear    clear terminal output",
+            "  history  show command history",
+            "  help     show this message"
+          ].join("\n")
+        )
+      ]);
+      recordTerminalHistory(command);
+      setTerminalCommand("");
+      return;
+    }
+
     setTerminalSubmitting(true);
     try {
       const createdTask = await createAdhocTask({
         serverId: terminalServer.id,
-        command: values.command,
+        command,
         riskConfirmed: true
       });
-      setTerminalTask(createdTask);
+      setTerminalPollFallbackTaskId(null);
+      syncTerminalTask(createdTask);
+      recordTerminalHistory(command);
+      setTerminalCommand("");
       message.success("SSH 命令已发送");
     } catch {
       message.error("SSH 命令发送失败");
@@ -273,15 +463,76 @@ export function ServerListPage() {
       return;
     }
     try {
-      const taskItems = await fetchTasks();
-      const nextTask = taskItems.find((item) => item.id === terminalTask.id);
+      const nextTask = await fetchTask(terminalTask.id);
       if (nextTask) {
-        setTerminalTask(nextTask);
+        syncTerminalTask(nextTask);
       }
     } catch {
       message.error("终端输出刷新失败");
     }
   };
+
+  const clearTerminalScreen = () => {
+    setTerminalEntries([]);
+    setTerminalTask(null);
+    setTerminalPollFallbackTaskId(null);
+  };
+
+  const applyHistoryCommand = (direction: "prev" | "next") => {
+    if (terminalHistory.length === 0) {
+      return;
+    }
+
+    if (direction === "prev") {
+      const nextIndex = terminalHistoryIndex === null ? terminalHistory.length - 1 : Math.max(terminalHistoryIndex - 1, 0);
+      if (terminalHistoryIndex === null) {
+        setTerminalHistoryDraft(terminalCommand);
+      }
+      setTerminalHistoryIndex(nextIndex);
+      setTerminalCommand(terminalHistory[nextIndex]);
+      return;
+    }
+
+    if (terminalHistoryIndex === null) {
+      return;
+    }
+
+    const nextIndex = terminalHistoryIndex + 1;
+    if (nextIndex >= terminalHistory.length) {
+      setTerminalHistoryIndex(null);
+      setTerminalCommand(terminalHistoryDraft);
+      return;
+    }
+
+    setTerminalHistoryIndex(nextIndex);
+    setTerminalCommand(terminalHistory[nextIndex]);
+  };
+
+  const handleTerminalInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void runTerminalCommand();
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      applyHistoryCommand("prev");
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      applyHistoryCommand("next");
+    }
+  };
+
+  const terminalSyncStatusLabel =
+    terminalTask && isTerminalTaskRunning(terminalTask)
+      ? terminalPollFallbackTaskId === terminalTask.id
+        ? "轮询同步"
+        : "实时推送"
+      : "会话就绪";
 
   return (
     <>
@@ -439,6 +690,9 @@ export function ServerListPage() {
         extra={
           <Space>
             <Button onClick={closeTerminalDrawer}>关闭</Button>
+            <Button onClick={clearTerminalScreen} disabled={!terminalEntries.length && !terminalTask}>
+              清屏
+            </Button>
             <Button
               icon={<ReloadOutlined />}
               onClick={() => void refreshTerminalTask()}
@@ -474,42 +728,70 @@ export function ServerListPage() {
             <Typography.Text strong>常用命令</Typography.Text>
             <Space wrap style={{ marginTop: 12 }}>
               {terminalPresets.map((preset) => (
-                <Button key={preset.label} onClick={() => terminalForm.setFieldsValue({ command: preset.command })}>
+                <Button key={preset.label} onClick={() => setTerminalCommand(preset.command)}>
                   {preset.label}
                 </Button>
               ))}
             </Space>
           </div>
-          <Form<TerminalFormValues> form={terminalForm} layout="vertical">
-            <Form.Item
-              label="命令内容"
-              name="command"
-              rules={[{ required: true, whitespace: true, message: "请输入命令内容" }]}
-            >
-              <Input.TextArea rows={6} placeholder="例如 docker ps -a" />
-            </Form.Item>
-          </Form>
-          {terminalTask ? (
-            <div className="timeops-inline-panel">
-              <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                <Space wrap align="center">
-                  <Typography.Text strong>{terminalTask.taskNumber}</Typography.Text>
-                  {renderTaskStatus(terminalTask.status)}
-                </Space>
-                <Typography.Text type="secondary">
-                  命令会通过服务器管理中保存的 SSH 凭据直接下发到目标主机。
-                </Typography.Text>
-                <div>
-                  <Typography.Text strong>标准输出</Typography.Text>
-                  <pre className="timeops-log-block">{terminalTask.outputLog || "等待输出..."}</pre>
-                </div>
-                <div>
-                  <Typography.Text strong>错误输出</Typography.Text>
-                  <pre className="timeops-log-block">{terminalTask.errorLog || "暂无错误输出"}</pre>
-                </div>
-              </Space>
+          <div className="timeops-terminal-window">
+            <div className="timeops-terminal-toolbar">
+              <div className="timeops-terminal-toolbar-dots" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <Typography.Text className="timeops-terminal-toolbar-label">
+                {terminalServer ? `ssh ${terminalServer.sshUsername}@${terminalServer.host} -p ${terminalServer.sshPort}` : "SSH 会话"}
+              </Typography.Text>
+              <Typography.Text type="secondary">{terminalSyncStatusLabel}</Typography.Text>
             </div>
-          ) : null}
+            <div className="timeops-terminal-body" ref={terminalViewportRef}>
+              <div className="timeops-terminal-banner">
+                <div>{terminalServer ? `Connected to ${terminalServer.host}` : "Terminal disconnected"}</div>
+                <div>{terminalServer?.osLabel ?? "Linux host"}</div>
+              </div>
+              {terminalEntries.length === 0 ? (
+                <div className="timeops-terminal-empty">SSH 会话已就绪。</div>
+              ) : null}
+              {terminalEntries.map((entry) => (
+                <div key={entry.id} className="timeops-terminal-entry">
+                  <div className="timeops-terminal-line">
+                    <span className="timeops-terminal-prompt">{terminalPrompt}</span>
+                    <span className="timeops-terminal-command">{entry.command}</span>
+                  </div>
+                  {entry.stdout ? <pre className="timeops-terminal-stream">{entry.stdout}</pre> : null}
+                  {entry.stderr ? <pre className="timeops-terminal-stream timeops-terminal-stream-error">{entry.stderr}</pre> : null}
+                  {!entry.stdout && !entry.stderr && isRunningStatus(entry.status) ? (
+                    <div className="timeops-terminal-stream-muted">正在建立 SSH 会话...</div>
+                  ) : null}
+                  <div className="timeops-terminal-meta">
+                    <span>{entry.taskNumber}</span>
+                    {renderTaskStatus(entry.status)}
+                    {entry.exitCode !== undefined ? <span>{`exit ${entry.exitCode}`}</span> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="timeops-terminal-input-row">
+              <span className="timeops-terminal-prompt">{terminalPrompt}</span>
+              <Input
+                ref={terminalInputRef}
+                aria-label="终端命令输入"
+                autoComplete="off"
+                className="timeops-terminal-input"
+                disabled={!terminalServer || terminalBusy || terminalSubmitting}
+                placeholder={terminalBusy ? "当前命令执行中..." : "输入 Linux 命令，回车立即执行"}
+                variant="borderless"
+                value={terminalCommand}
+                onChange={(event) => {
+                  setTerminalCommand(event.target.value);
+                  setTerminalHistoryIndex(null);
+                }}
+                onKeyDown={handleTerminalInputKeyDown}
+              />
+            </div>
+          </div>
         </Space>
       </Drawer>
     </>

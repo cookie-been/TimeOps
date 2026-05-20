@@ -1,19 +1,20 @@
 # TimeOps Repo State Handoff
 
-- Date: 2026-05-19
-- Workspace: `/workspace/.worktrees/timeops-mvp-impl/TimeOps`
-- Branch: `timeops-mvp-impl`
+- Date: 2026-05-20
+- Workspace: `D:\workspace\timeops`
+- Branch: `codex/timeops-frontend-polish`
 - Recent commits:
-  - `64a48ec feat: support template action ordering`
-  - `94c43d7 docs: refresh delivery platform handoff state`
-  - `10b8bdc feat: expand template action editor`
+  - `735eead Polish frontend deployment workflows`
+  - `596df02 docs: add codex continuity guide`
+  - `27e00f4 feat: normalize template action execution order`
+  - `08f5be7 feat: support template action ordering`
+  - `abfb29b docs: refresh delivery platform handoff state`
 
 ## Snapshot
 
-- Working tree is currently clean.
-- The large platform baseline is now committed instead of living only in untracked files.
-- The follow-up template editor expansion and manual template action ordering UI are committed.
-- Main continuity risk is no longer uncommitted work; it is making sure future work starts from the newer delivery-platform baseline and newer ordering semantics instead of the stale upgrade plan.
+- Working tree currently contains the server remote terminal follow-up plus documentation updates.
+- The large platform baseline, template editor expansion, and manual template action ordering UI are committed.
+- Main continuity risk is making sure future work starts from the newer delivery-platform baseline, ordering semantics, and server terminal follow-up instead of the stale upgrade plan.
 
 ## What Is Already Present In The Worktree
 
@@ -193,6 +194,38 @@
   - `cd frontend && npm test`
     - passed
     - 12 test files, 26 tests
+  - `cd frontend && npm run build`
+    - passed
+
+## Latest Server Terminal Follow-up On 2026-05-20
+
+- Work is currently on branch `codex/timeops-frontend-polish`, which intentionally diverges from the older expected `timeops-mvp-impl` handoff branch.
+- Server management now has an operator-facing remote terminal drawer:
+  - runs commands through the existing `ADHOC_COMMAND` task path
+  - supports command presets, history navigation, local `help` / `history` / `clear`, clear screen, manual refresh, and terminal-style output rendering
+  - preserves task status, stdout, stderr, exit code, and audit behavior through the normal task model
+- Backend task API now exposes:
+  - `GET /api/tasks/{taskId}` for task detail refresh
+  - `GET /api/tasks/{taskId}/events` as a text/event-stream endpoint for task snapshots
+- `TaskEventStreamService` polls the task supplier once per second and completes the stream after a terminal task status.
+- Frontend API client now subscribes to task events with `fetch` streaming and falls back to task-detail polling if the stream is unavailable.
+- README now documents the server remote terminal and task detail/event endpoints.
+- New regression coverage:
+  - `TaskCommandControllerTest.shouldReturnTaskDetailsById`
+  - `TaskCommandControllerTest.shouldStreamTaskEventsById`
+  - `ServerListPage terminal > runs terminal commands in an interactive shell-like drawer`
+  - `ServerListPage terminal > supports local built-in commands`
+- Fresh WSL verification on 2026-05-20:
+  - `cd backend && mvn -q -Dtest=TaskCommandControllerTest test`
+    - passed
+  - `cd frontend && npm test -- src/test/server-terminal.test.tsx`
+    - passed
+  - `cd backend && mvn -q test`
+    - passed
+  - `cd frontend && npm test`
+    - passed
+    - 15 test files
+    - 31 tests
   - `cd frontend && npm run build`
     - passed
 
