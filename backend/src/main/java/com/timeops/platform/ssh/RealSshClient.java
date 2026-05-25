@@ -17,6 +17,11 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 public class RealSshClient implements SshClient {
 
     private final SshProperties sshProperties;
+    private final ExecutorService executorService = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "ssh-reader");
+        t.setDaemon(true);
+        return t;
+    });
 
     public RealSshClient(SshProperties sshProperties) {
         this.sshProperties = sshProperties;
@@ -61,29 +66,24 @@ public class RealSshClient implements SshClient {
 
     private SshExecutionResult waitForCommandResult(Session.Command sshCommand)
             throws IOException, InterruptedException, ExecutionException, TimeoutException {
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
-        try {
-            Future<String> stdoutFuture = executorService.submit(() -> readStream(sshCommand.getInputStream()));
-            Future<String> stderrFuture = executorService.submit(() -> readStream(sshCommand.getErrorStream()));
+        Future<String> stdoutFuture = executorService.submit(() -> readStream(sshCommand.getInputStream()));
+        Future<String> stderrFuture = executorService.submit(() -> readStream(sshCommand.getErrorStream()));
 
-            sshCommand.join(sshProperties.getCommandTimeoutMillis(), TimeUnit.MILLISECONDS);
-            Integer exitStatus = sshCommand.getExitStatus();
-            if (exitStatus == null) {
-                sshCommand.close();
-                throw new SshExecutionException(
-                        "SSH command timed out after " + sshProperties.getCommandTimeoutMillis() + " ms",
-                        124,
-                        waitForStream(stdoutFuture, 1000L),
-                        waitForStream(stderrFuture, 1000L));
-            }
-
-            long readTimeoutMillis = Math.max(1000L, sshProperties.getCommandTimeoutMillis());
-            String stdout = stdoutFuture.get(readTimeoutMillis, TimeUnit.MILLISECONDS);
-            String stderr = stderrFuture.get(readTimeoutMillis, TimeUnit.MILLISECONDS);
-            return new SshExecutionResult(exitStatus, stdout, stderr);
-        } finally {
-            executorService.shutdownNow();
+        sshCommand.join(sshProperties.getCommandTimeoutMillis(), TimeUnit.MILLISECONDS);
+        Integer exitStatus = sshCommand.getExitStatus();
+        if (exitStatus == null) {
+            sshCommand.close();
+            throw new SshExecutionException(
+                    "SSH command timed out after " + sshProperties.getCommandTimeoutMillis() + " ms",
+                    124,
+                    waitForStream(stdoutFuture, 1000L),
+                    waitForStream(stderrFuture, 1000L));
         }
+
+        long readTimeoutMillis = Math.max(1000L, sshProperties.getCommandTimeoutMillis());
+        String stdout = stdoutFuture.get(readTimeoutMillis, TimeUnit.MILLISECONDS);
+        String stderr = stderrFuture.get(readTimeoutMillis, TimeUnit.MILLISECONDS);
+        return new SshExecutionResult(exitStatus, stdout, stderr);
     }
 
     private String readStream(InputStream inputStream) throws IOException {

@@ -19,15 +19,15 @@ Do not treat this file as the detailed project log. Treat it as the bootstrap fi
 
 ## Current Branch And Recent Commits
 
-- Expected working branch: `timeops-mvp-impl`
+- Expected working branch: `main` (the `codex/timeops-frontend-polish` branch has been merged into main)
 - Recent commits:
-  - `d076d6b feat: normalize template action execution order`
-  - `64a48ec feat: support template action ordering`
-  - `94c43d7 docs: refresh delivery platform handoff state`
-  - `10b8bdc feat: expand template action editor`
-  - `44e0a88 feat: build TimeOps delivery operations platform`
+  - `0251e5e chore: ignore codex temp files`
+  - `5e7cd50 feat: add server remote terminal`
+  - `735eead Polish frontend deployment workflows`
+  - `596df02 docs: add codex continuity guide`
+  - `27e00f4 feat: normalize template action execution order`
 
-If this file is being read on a different branch, verify whether the branch intentionally diverged before changing code.
+If this file is being read on a branch other than `main`, verify whether the branch intentionally diverged before changing code.
 
 ## Current Delivery Platform State
 
@@ -42,7 +42,7 @@ If this file is being read on a different branch, verify whether the branch inte
 
 ## Verification Baseline
 
-Last known green verification on 2026-05-19:
+Last known green verification on 2026-05-20:
 
 - `cd backend && mvn -q test`
   - passed
@@ -50,8 +50,8 @@ Last known green verification on 2026-05-19:
   - 34 tests
 - `cd frontend && npm test`
   - passed
-  - 12 test files
-  - 26 tests
+  - 15 test files
+  - 31 tests
 - `cd frontend && npm run build`
   - passed
 

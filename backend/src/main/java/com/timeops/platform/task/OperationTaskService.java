@@ -19,6 +19,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -33,6 +34,7 @@ public class OperationTaskService {
     private final SshClient sshClient;
     private final TaskExecutionContextFactory taskExecutionContextFactory;
     private final TemplateStepExecutor templateStepExecutor;
+    private final TransactionTemplate transactionTemplate;
 
     public OperationTaskService(
             OperationTaskRepository operationTaskRepository,
@@ -43,7 +45,8 @@ public class OperationTaskService {
             CredentialCryptoService credentialCryptoService,
             SshClient sshClient,
             TaskExecutionContextFactory taskExecutionContextFactory,
-            TemplateStepExecutor templateStepExecutor) {
+            TemplateStepExecutor templateStepExecutor,
+            TransactionTemplate transactionTemplate) {
         this.operationTaskRepository = operationTaskRepository;
         this.serverRepository = serverRepository;
         this.deploymentInstanceRepository = deploymentInstanceRepository;
@@ -53,6 +56,7 @@ public class OperationTaskService {
         this.sshClient = sshClient;
         this.taskExecutionContextFactory = taskExecutionContextFactory;
         this.templateStepExecutor = templateStepExecutor;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @Transactional
@@ -103,29 +107,44 @@ public class OperationTaskService {
         return enqueueByTemplateAction(instanceId, null, initiatorUserId, TemplateActionType.RESTART, TaskType.RESTART);
     }
 
-    @Transactional
     public void execute(UUID taskId) {
-        OperationTaskEntity operationTaskEntity = operationTaskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task does not exist"));
+        // Phase 1: load entity and mark RUNNING (short transaction)
+        OperationTaskEntity operationTaskEntity = transactionTemplate.execute(status -> {
+            OperationTaskEntity entity = operationTaskRepository.findById(taskId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task does not exist"));
+            entity.markRunning();
+            return entity;
+        });
+
+        // Phase 2: SSH execution (no transaction — may run for up to 30 minutes)
         TaskExecutionContext taskExecutionContext = taskExecutionContextFactory.create(operationTaskEntity);
-        operationTaskEntity.markRunning();
+        int exitCode;
+        String stdout;
+        String stderr;
         try {
             SshExecutionResult sshExecutionResult = executeTask(operationTaskEntity, taskExecutionContext);
-            operationTaskEntity.markFinished(
-                    sshExecutionResult.exitCode(),
-                    sshExecutionResult.stdout(),
-                    sshExecutionResult.stderr());
+            exitCode = sshExecutionResult.exitCode();
+            stdout = sshExecutionResult.stdout();
+            stderr = sshExecutionResult.stderr();
         } catch (SshExecutionException exception) {
-            operationTaskEntity.markFinished(
-                    exception.getExitCode() == null ? 255 : exception.getExitCode(),
-                    exception.getStdout(),
-                    buildErrorLog(exception));
+            exitCode = exception.getExitCode() == null ? 255 : exception.getExitCode();
+            stdout = exception.getStdout();
+            stderr = buildErrorLog(exception);
         } catch (RuntimeException exception) {
-            operationTaskEntity.markFinished(
-                    255,
-                    "",
-                    exception.getMessage() == null ? "SSH execution failed" : exception.getMessage());
+            exitCode = 255;
+            stdout = "";
+            stderr = exception.getMessage() == null ? "SSH execution failed" : exception.getMessage();
         }
+
+        // Phase 3: persist result (short transaction)
+        int finalExitCode = exitCode;
+        String finalStdout = stdout;
+        String finalStderr = stderr;
+        transactionTemplate.executeWithoutResult(status -> {
+            OperationTaskEntity entity = operationTaskRepository.findById(taskId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task does not exist"));
+            entity.markFinished(finalExitCode, finalStdout, finalStderr);
+        });
     }
 
     @Transactional(readOnly = true)
@@ -186,7 +205,7 @@ public class OperationTaskService {
 
     private String buildErrorLog(SshExecutionException exception) {
         String message = exception.getMessage() == null ? "SSH execution failed" : exception.getMessage();
-        if (exception.getStderr().isBlank()) {
+        if (exception.getStderr() == null || exception.getStderr().isBlank()) {
             return message;
         }
         return message + System.lineSeparator() + exception.getStderr();

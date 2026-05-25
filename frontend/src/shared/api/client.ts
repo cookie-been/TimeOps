@@ -88,7 +88,8 @@ async function safeFetch<T>(request: Promise<{ data: ApiResponse<T> }>, fallback
   try {
     const response = await request;
     return response.data.data;
-  } catch {
+  } catch (error) {
+    console.error("[TimeOps API] request failed, falling back to mock data", error);
     return fallback;
   }
 }
@@ -101,7 +102,8 @@ async function safeFetchMapped<T, R>(
   try {
     const response = await request;
     return mapper(response.data.data);
-  } catch {
+  } catch (error) {
+    console.error("[TimeOps API] request failed, falling back to mock data", error);
     return fallback;
   }
 }

@@ -1,14 +1,14 @@
 # TimeOps Repo State Handoff
 
-- Date: 2026-05-20
+- Date: 2026-05-25 (updated)
 - Workspace: `D:\workspace\timeops`
-- Branch: `codex/timeops-frontend-polish`
+- Branch: `main` (the `codex/timeops-frontend-polish` branch was merged into main via fast-forward on 2026-05-20)
 - Recent commits:
+  - `0251e5e chore: ignore codex temp files`
+  - `5e7cd50 feat: add server remote terminal`
   - `735eead Polish frontend deployment workflows`
   - `596df02 docs: add codex continuity guide`
   - `27e00f4 feat: normalize template action execution order`
-  - `08f5be7 feat: support template action ordering`
-  - `abfb29b docs: refresh delivery platform handoff state`
 
 ## Snapshot
 
@@ -199,7 +199,7 @@
 
 ## Latest Server Terminal Follow-up On 2026-05-20
 
-- Work is currently on branch `codex/timeops-frontend-polish`, which intentionally diverges from the older expected `timeops-mvp-impl` handoff branch.
+- Work was done on branch `codex/timeops-frontend-polish` and merged into `main` on 2026-05-20.
 - Server management now has an operator-facing remote terminal drawer:
   - runs commands through the existing `ADHOC_COMMAND` task path
   - supports command presets, history navigation, local `help` / `history` / `clear`, clear screen, manual refresh, and terminal-style output rendering
@@ -236,3 +236,11 @@
 3. The next natural delivery-platform slice is higher-level template workflow authoring or richer operator-facing action summaries, not more low-level ordering cleanup.
 4. If new delivery-platform work is needed beyond that, write a fresh scoped plan instead of reusing the old unchecked upgrade checklist.
 5. Keep using this handoff file as the continuity anchor if context is compressed again.
+
+## Maintenance On 2026-05-25
+
+- Fixed `RealSshClient` thread pool: replaced per-call `Executors.newFixedThreadPool(2)` with a shared daemon `CachedThreadPool` instance field to avoid thread leakage under concurrent SSH execution.
+- Updated `AGENTS.md` branch info from `timeops-mvp-impl` to `main`.
+- Updated this handoff file to reflect the current `main` branch and merge state.
+- Confirmed `OperationTaskService.execute()` already had `@Transactional` — but the annotation was removed and replaced with `TransactionTemplate` to split the method into three phases: load+mark RUNNING (short tx) → SSH execution (no tx, up to 30 min) → persist result (short tx). This prevents database connections from being held open for the entire SSH execution duration.
+- Fixed NPE risk in `OperationTaskService.buildErrorLog()` when `SshExecutionException.getStderr()` returns null.
